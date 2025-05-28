@@ -115,7 +115,7 @@ struct RaceCommandEnterRoomOK
 {
   // List size specified with a uint32_t. Max size 10
   std::vector<Racer> racers{};
-  uint8_t unk0{};
+  uint8_t nowPlaying{};
   uint32_t unk1{};
   RoomDescription roomDescription{};
 
@@ -417,6 +417,42 @@ struct UserRaceTimerOK
   //! @param stream Source stream.
   static void Read(
     UserRaceTimerOK& command,
+    SourceStream& stream);
+};
+
+struct RaceCommandLoadingComplete
+{
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const RaceCommandLoadingComplete& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    RaceCommandLoadingComplete& command,
+    SourceStream& stream);
+};
+
+struct RaceCommandLoadingCompleteNotify
+{
+  uint16_t member0{};
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const RaceCommandLoadingCompleteNotify& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    RaceCommandLoadingCompleteNotify& command,
     SourceStream& stream);
 };
 

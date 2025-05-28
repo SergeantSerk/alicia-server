@@ -117,7 +117,7 @@ void LobbyCommandLoginOK::Write(
   // ToDo: Write the gamepad options.
 
   stream.Write(static_cast<uint8_t>(command.ageGroup))
-    .Write(command.val4);
+    .Write(command.hideAge);
 
   //
   stream.Write(static_cast<uint8_t>(command.val5.size()));
@@ -295,15 +295,15 @@ void LobbyCommandCreateNicknameNotify::Read(
   throw std::runtime_error("Not implemented.");
 }
 
-void LobbyCommandCreateNicknameOK::Write(
-  const LobbyCommandCreateNicknameOK& command,
+void LobbyCommandCreateNickname::Write(
+  const LobbyCommandCreateNickname& command,
   SinkStream& stream)
 {
   throw std::runtime_error("Not implemented.");
 }
 
-void LobbyCommandCreateNicknameOK::Read(
-  LobbyCommandCreateNicknameOK& command,
+void LobbyCommandCreateNickname::Read(
+  LobbyCommandCreateNickname& command,
   SourceStream& stream)
 {
   stream.Read(command.nickname)
@@ -484,16 +484,16 @@ void LobbyCommandMakeRoom::Read(
     .Read(command.unk1)
     .Read(command.unk2)
     .Read(command.missionId)
-    .Read(command.unk4)
+    .Read(command.unk3)
     .Read(command.bitset)
-    .Read(command.unk6);
+    .Read(command.unk4);
 }
 
 void LobbyCommandMakeRoomOK::Write(
   const LobbyCommandMakeRoomOK& command,
   SinkStream& stream)
 {
-  stream.Write(command.characterUid)
+  stream.Write(command.roomUid)
     .Write(command.otp)
     .Write(command.ip)
     .Write(command.port)

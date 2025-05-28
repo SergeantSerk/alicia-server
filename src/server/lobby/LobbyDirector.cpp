@@ -19,6 +19,8 @@
 
 #include "server/lobby/LobbyDirector.hpp"
 
+#include "libserver/registry/RoomRegistry.hpp"
+
 #include <random>
 
 #include <spdlog/spdlog.h>
@@ -39,86 +41,116 @@ LobbyDirector::LobbyDirector(soa::DataDirector& dataDirector, Settings::LobbySet
   , _dataDirector(dataDirector)
   , _loginHandler(*this, _server)
 {
-  // LobbyCommandLogin
   _server.RegisterCommandHandler<LobbyCommandLogin>(
     CommandId::LobbyLogin,
     [this](ClientId clientId, const auto& message)
     {
-      assert(message.constant0 == 50 && message.constant1 == 281 && "Game version mismatch");
+      assert(message.constant0 == 50
+        && message.constant1 == 281
+        && "Game version mismatch");
 
       _clientUsers[clientId] = message.loginId;
+
       _loginHandler.HandleUserLogin(clientId, message);
     });
 
-  _server.RegisterCommandHandler<LobbyCommandCreateNicknameOK>(
-    CommandId::LobbyCreateNicknameOK,
+  _server.RegisterCommandHandler<LobbyCommandCreateNickname>(
+    CommandId::LobbyCreateNickname,
     [this](ClientId clientId, const auto& message)
-    { HandleCreateNicknameOK(clientId, message); });
+    {
+      _loginHandler.HandleUserCreateCharacter(clientId, message);
+    });
 
   _server.RegisterCommandHandler<LobbyCommandEnterChannel>(
     CommandId::LobbyEnterChannel,
     [this](ClientId clientId, const auto& message)
-    { HandleEnterChannel(clientId, message); });
+    {
+      HandleEnterChannel(clientId, message);
+    });
 
   _server.RegisterCommandHandler<LobbyCommandMakeRoom>(
     CommandId::LobbyMakeRoom,
     [this](ClientId clientId, const auto& message)
-    { HandleMakeRoom(clientId, message); });
+    {
+      HandleMakeRoom(clientId, message);
+    });
 
   _server.RegisterCommandHandler<LobbyCommandHeartbeat>(
     CommandId::LobbyHeartbeat,
     [this](ClientId clientId, const auto& message)
-    { HandleHeartbeat(clientId, message); });
+    {
+      HandleHeartbeat(clientId, message);
+    });
 
   _server.RegisterCommandHandler<LobbyCommandShowInventory>(
     CommandId::LobbyShowInventory,
     [this](ClientId clientId, const auto& message)
-    { HandleShowInventory(clientId, message); });
+    {
+      HandleShowInventory(clientId, message);
+    });
 
   _server.RegisterCommandHandler<LobbyCommandAchievementCompleteList>(
     CommandId::LobbyAchievementCompleteList,
     [this](ClientId clientId, const auto& message)
-    { HandleAchievementCompleteList(clientId, message); });
+    {
+      HandleAchievementCompleteList(clientId, message);
+    });
 
   _server.RegisterCommandHandler<LobbyCommandRequestLeagueInfo>(
     CommandId::LobbyRequestLeagueInfo,
     [this](ClientId clientId, const auto& message)
-    { HandleRequestLeagueInfo(clientId, message); });
+    {
+      HandleRequestLeagueInfo(clientId, message);
+    });
 
   _server.RegisterCommandHandler<LobbyCommandRequestQuestList>(
     CommandId::LobbyRequestQuestList,
     [this](ClientId clientId, const auto& message)
-    { HandleRequestQuestList(clientId, message); });
+    {
+      HandleRequestQuestList(clientId, message);
+    });
 
   _server.RegisterCommandHandler<LobbyCommandRequestDailyQuestList>(
     CommandId::LobbyRequestDailyQuestList,
     [this](ClientId clientId, const auto& message)
-    { HandleRequestDailyQuestList(clientId, message); });
+    {
+      HandleRequestDailyQuestList(clientId, message);
+    });
 
   _server.RegisterCommandHandler<LobbyCommandRequestSpecialEventList>(
     CommandId::LobbyRequestSpecialEventList,
     [this](ClientId clientId, const auto& message)
-    { HandleRequestSpecialEventList(clientId, message); });
+    {
+      HandleRequestSpecialEventList(clientId, message);
+    });
 
   _server.RegisterCommandHandler<LobbyCommandEnterRanch>(
     CommandId::LobbyEnterRanch,
     [this](ClientId clientId, const auto& message)
-    { HandleEnterRanch(clientId, message); });
+    {
+      HandleEnterRanch(clientId, message);
+    });
 
   _server.RegisterCommandHandler<LobbyCommandGetMessengerInfo>(
     CommandId::LobbyGetMessengerInfo,
     [this](ClientId clientId, const auto& message)
-    { HandleGetMessengerInfo(clientId, message); });
+    {
+      HandleGetMessengerInfo(clientId, message);
+    });
 
   _server.RegisterCommandHandler<LobbyCommandGoodsShopList>(
     CommandId::LobbyGoodsShopList,
     [this](ClientId clientId, const auto& message)
-    { HandleGoodsShopList(clientId, message); });
+    {
+      HandleGoodsShopList(clientId, message);
+    });
 
   _server.RegisterCommandHandler<LobbyCommandInquiryTreecash>(
     CommandId::LobbyInquiryTreecash,
     [this](ClientId clientId, const auto& message)
-    { HandleInquiryTreecash(clientId, message); });
+    {
+      HandleInquiryTreecash(clientId, message);
+    });
 
   _server.RegisterCommandHandler<LobbyCommandClientNotify>(
     CommandId::LobbyClientNotify,
@@ -167,36 +199,6 @@ Settings::LobbySettings& LobbyDirector::GetSettings()
   return _settings;
 }
 
-void LobbyDirector::HandleCreateNicknameOK(
-  ClientId clientId,
-  const LobbyCommandCreateNicknameOK& createNickname)
-{
-  const auto userName = _clientUsers[clientId];
-  auto user = _dataDirector.GetUsers().Get(userName);
-
-  if (not user)
-  {
-    return;
-  }
-
-  (*user)().characterUid = 1;
-  auto character = _dataDirector.GetCharacters().Create(1);
-  character->Mutable([&](auto& character)
-                     {
-    character.name = createNickname.nickname;
-    character.parts = soa::data::Character::Parts{
-      .modelId = createNickname.character.parts.charId,
-      .mouthId = createNickname.character.parts.mouthSerialId,
-      .faceId = createNickname.character.parts.faceSerialId};
-    character.appearance = soa::data::Character::Appearance{
-      .headSize = createNickname.character.appearance.headSize,
-      .height = createNickname.character.appearance.height,
-      .thighVolume = createNickname.character.appearance.thighVolume,
-      .legVolume = createNickname.character.appearance.legVolume,}; });
-
-  _dataDirector.GetCharacters().Save(1);
-}
-
 void LobbyDirector::HandleEnterChannel(
   ClientId clientId,
   const LobbyCommandEnterChannel& enterChannel)
@@ -218,36 +220,32 @@ void LobbyDirector::HandleMakeRoom(
   ClientId clientId,
   const LobbyCommandMakeRoom& makeRoom)
 {
-  /*const auto characterUid = _clientCharacters[clientId];
-  const auto character = _dataDirector.GetCharacter(characterUid);
-  character->roomUid = 123; // TODO: Generate somehow
+  auto& roomRegistry = soa::RoomRegistry::Get();
+  auto& room = roomRegistry.CreateRoom();
 
-  const auto room = _dataDirector.GetRoom(character->roomUid.value());
-  room->name = makeRoom.name;
-  room->description = makeRoom.description;
-  room->unk0 = makeRoom.unk0;
-  room->unk1 = makeRoom.unk1;
-  room->unk2 = makeRoom.unk2;
-  room->missionId = makeRoom.missionId;
-  room->unk4 = makeRoom.unk4;
-  room->bitset = makeRoom.bitset;
-  room->unk6 = makeRoom.unk6;
+  room.name = makeRoom.name;
+  room.description = makeRoom.description;
+  room.missionId = makeRoom.missionId;
+  room.unk0 = makeRoom.unk0;
+  room.unk1 = makeRoom.unk1;
+  room.unk2 = makeRoom.unk2;
+  room.unk3 = makeRoom.unk3;
+  room.bitset = makeRoom.bitset;
+  room.unk4 = makeRoom.unk4;
 
   LobbyCommandMakeRoomOK response{
-    .characterUid = characterUid,
-    .otp = 0x44332211,
+    .roomUid = room.uid,
+    .otp = 0xBAAD,
     .ip = htonl(_settings.raceAdvAddress.to_uint()),
-    .port = _settings.raceAdvPort,
-    .unk2 = 0
-  };
+    .port = _settings.raceAdvPort};
 
-  _server.QueueCommand(
+  _server.QueueCommand<decltype(response)>(
     clientId,
     CommandId::LobbyMakeRoomOK,
-    [response](auto& sink)
+    [response]()
     {
-      LobbyCommandMakeRoomOK::Write(response, sink);
-    });*/
+      return response;
+    });
 }
 
 void LobbyDirector::HandleHeartbeat(

@@ -20,7 +20,10 @@
  **/
 
 #include "server/race/RaceDirector.hpp"
-#include "spdlog/spdlog.h"
+
+#include "libserver/registry/RoomRegistry.hpp"
+
+#include <spdlog/spdlog.h>
 
 namespace alicia
 {
@@ -59,6 +62,16 @@ RaceDirector::RaceDirector(
     {
       HandleRaceTimer(clientId, message);
     });
+
+  _server.RegisterCommandHandler<RaceCommandLoadingComplete>(
+  CommandId::RaceLoadingComplete,
+  [this](ClientId clientId, const auto& message)
+  {
+    _server.QueueCommand<RaceCommandLoadingCompleteNotify>(clientId, CommandId::RaceLoadingCompleteNotify, [](){
+      return RaceCommandLoadingCompleteNotify{
+      .member0 = 1};
+    });
+  });
 }
 
 void RaceDirector::Initialize()
@@ -99,12 +112,7 @@ Rooms will not be in data director.
 
 void RaceDirector::HandleEnterRoom(ClientId clientId, const RaceCommandEnterRoom& enterRoom)
 {
-  /*assert(enterRoom.otp == 0x44332211);
-
-  _clientCharacters[clientId] = enterRoom.characterUid;
-  auto character = _dataDirector.GetCharacter(enterRoom.characterUid);
-  auto mount = _dataDirector.GetMount(character->mountUid);
-  auto room = _dataDirector.GetRoom(character->roomUid.value());
+  assert(enterRoom.otp == 0xBAAD);
 
   // TODO: Send RaceEnterRoomNotify to all clients in the room
 
@@ -116,27 +124,29 @@ void RaceDirector::HandleEnterRoom(ClientId clientId, const RaceCommandEnterRoom
     CommandId::RaceEnterRoomOK,
     [&](auto& sink)
     {
-      RaceCommandEnterRoomOK response
-      {
-        .racers =
-        {
+      auto& roomRegistry = soa::RoomRegistry::Get();
+      auto& room = roomRegistry.GetRoom(enterRoom.roomUid);
+
+      RaceCommandEnterRoomOK response{
+        .racers = {
           Racer {
             .unk0 = 1,
             .unk1 = 1,
-            .level = character->level,
+            .level = 0,
             .exp = 1,
             .uid = enterRoom.characterUid,
-            .name = character->nickName,
+            .name = "racer",
             .unk5 = 1,
             .unk6 = 1,
             .bitset = 0,
             .isNPC = false,
             .playerRacer = PlayerRacer {
-              .characterEquipment = character->characterEquipment,
-              .character = character->looks.value(),
-              .horse = {.uid = character->mountUid,
-                .tid = mount->tid,
-                .name = mount->name,
+              .characterEquipment = {},
+              .character = {},
+              .horse = {
+                .uid = 2,
+                .tid = 0x4e21,
+                .name = "default",
                 .parts = {.skinId = 0x2, .maneId = 0x3, .tailId = 0x3, .faceId = 0x3},
                   .appearance =
                     {.scale = 0x4,
@@ -147,59 +157,22 @@ void RaceDirector::HandleEnterRoom(ClientId clientId, const RaceCommandEnterRoom
                   .stats =
                     {
                       .agility = 9,
-                      .spirit = 9,
+                      .control = 9,
                       .speed = 9,
                       .strength = 9,
-                      .ambition = 0x13
+                      .spirit = 0x13
                     },
                   .rating = 0,
                   .clazz = 0x15,
                   .val0 = 1,
                   .grade = 5,
                   .growthPoints = 2,
-                  .vals0 =
-                    {
-                      .stamina = 0x7d0,
-                      .attractiveness = 0x3c,
-                      .hunger = 0x21c,
-                      .val0 = 0x00,
-                      .val1 = 0x03E8,
-                      .val2 = 0x00,
-                      .val3 = 0x00,
-                      .val4 = 0x00,
-                      .val5 = 0x03E8,
-                      .val6 = 0x1E,
-                      .val7 = 0x0A,
-                      .val8 = 0x0A,
-                      .val9 = 0x0A,
-                      .val10 = 0x00,
-                    },
-                  .vals1 =
-                    {
-                      .val0 = 0x00,
-                      .val1 = 0x00,
-                      .val2 = 0xb8a167e4,
-                      .val3 = 0x02,
-                      .val4 = 0x00,
-                      .classProgression = 0x32e7d,
-                      .val5 = 0x00,
-                      .val6 = 0x00,
-                      .val7 = 0x00,
-                      .val8 = 0x00,
-                      .val9 = 0x00,
-                      .val10 = 0x04,
-                      .val11 = 0x00,
-                      .val12 = 0x00,
-                      .val13 = 0x00,
-                      .val14 = 0x00,
-                      .val15 = 0x01
-                    },
                   .mastery =
                     {
-                      .magic = 0x1fe,
-                      .jumping = 0x421,
-                      .sliding = 0x5f8,
-                      .gliding = 0xcfa4,
+                      .spurMagicCount = 0x1fe,
+                      .jumpCount = 0x421,
+                      .slidingTime = 0x5f8,
+                      .glidingDistance = 0xcfa4,
                     },
                   .val16 = 0xb8a167e4,
                   .val17 = 0},
@@ -208,30 +181,30 @@ void RaceDirector::HandleEnterRoom(ClientId clientId, const RaceCommandEnterRoom
             },
             .unk8 = {
               .unk0 = 0,
-              .anotherPlayerRelatedThing = {.mountUid = character->mountUid, .val1 = 0x12}
+              //.anotherPlayerRelatedThing = {.mountUid = character->mountUid, .val1 = 0x12}
             },
             .yetAnotherPlayerRelatedThing = {},
             .playerRelatedThing = {.val1 = 1},
             .unk9 = {.unk0 = 1, .unk1 = 1}
           }
         },
-        .unk0 = 1,
+        .nowPlaying = 1,
         .unk1 = 1,
         .roomDescription = {
-          .name = room->name,
-          .val_between_name_and_desc = (uint8_t) character->roomUid.value(), // ?
-          .description = room->description,
-          .unk1 = room->unk0,
-          .unk2 = room->unk1,
+          .name = room.name,
+          .val_between_name_and_desc = static_cast<uint8_t>(room.uid), // ?
+          .description = room.description,
+          .unk1 = room.unk0,
+          .unk2 = room.unk1,
           .unk3 = 20004,
-          .unk4 = room->unk2,
-          .missionId = room->missionId,
-          .unk6 = room->unk4,
-          .unk7 = room->unk6
+          .unk4 = room.unk2,
+          .missionId = room.missionId,
+          .unk6 = room.unk3,
+          .unk7 = room.unk4
         }
       };
       RaceCommandEnterRoomOK::Write(response, sink);
-    });*/
+    });
 }
 
 void RaceDirector::HandleChangeRoomOptions(ClientId clientId, const RaceCommandChangeRoomOptions& changeRoomOptions)
@@ -258,19 +231,15 @@ void RaceDirector::HandleChangeRoomOptions(ClientId clientId, const RaceCommandC
 
 void RaceDirector::HandleStartRace(ClientId clientId, const RaceCommandStartRace& startRace)
 {
-  /*auto characterUid = _clientCharacters[clientId];
-  auto character = _dataDirector.GetCharacter(characterUid);
-  auto mount = _dataDirector.GetMount(character->mountUid);
-  auto room = _dataDirector.GetRoom(character->roomUid.value());
-
+  // Start the race or AcCmdRCRoomCountdown
   const RaceCommandStartRaceNotify response {
-    .gamemode = 1,
-    .unk3 = character->roomUid.value(),
+    .gamemode = 6,
+    .unk3 = 1,
     .map = 20004,
     .racers = {
       {
         .oid = 1,
-        .name = character->nickName,
+        .name = "default",
         .unk2 = 1,
         .unk3 = 1,
         .unk4 = 1,
@@ -279,8 +248,8 @@ void RaceDirector::HandleStartRace(ClientId clientId, const RaceCommandStartRace
         .unk7 = 1,
       }
     },
-    .ip = htonl(_settings._lobbySettings.raceAdvAddress.to_uint()),
-    .port = _settings._lobbySettings.raceAdvPort
+    .ip = _settings.address.to_uint(),
+    .port = htons(_settings.port),
   };
 
   // TODO: Send to all clients in the room
@@ -290,19 +259,19 @@ void RaceDirector::HandleStartRace(ClientId clientId, const RaceCommandStartRace
     [response](auto& sink)
     {
       RaceCommandStartRaceNotify::Write(response, sink);
-    });*/
+    });
 }
 
 void RaceDirector::HandleRaceTimer(ClientId clientId, const UserRaceTimer& raceTimer)
 {
   _server.QueueCommand(
     clientId,
-    CommandId::UserRaceTimer,
+    CommandId::UserRaceTimerOK,
     [&](auto& sink)
     {
       UserRaceTimerOK response{
-        //.unk0 = raceTimer.timestamp + 1000 * 60,
-        .unk1 = raceTimer.timestamp + 1000 * 60};
+        .unk0 = raceTimer.timestamp + 10000,
+        .unk1 = raceTimer.timestamp + 20000};
       UserRaceTimerOK::Write(response, sink);
     });
 }

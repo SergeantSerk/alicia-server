@@ -175,35 +175,35 @@ void Horse::Appearance::Read(Appearance& value, SourceStream& stream)
 void Horse::Stats::Write(const Stats& value, SinkStream& stream)
 {
   stream.Write(value.agility)
-    .Write(value.spirit)
+    .Write(value.control)
     .Write(value.speed)
     .Write(value.strength)
-    .Write(value.ambition);
+    .Write(value.spirit);
 }
 
 void Horse::Stats::Read(Stats& value, SourceStream& stream)
 {
   stream.Read(value.agility)
-    .Read(value.spirit)
+    .Read(value.control)
     .Read(value.speed)
     .Read(value.strength)
-    .Read(value.ambition);
+    .Read(value.spirit);
 }
 
 void Horse::Mastery::Write(const Mastery& value, SinkStream& stream)
 {
-  stream.Write(value.magic)
-    .Write(value.jumping)
-    .Write(value.sliding)
-    .Write(value.gliding);
+  stream.Write(value.spurMagicCount)
+    .Write(value.jumpCount)
+    .Write(value.slidingTime)
+    .Write(value.glidingDistance);
 }
 
 void Horse::Mastery::Read(Mastery& value, SourceStream& stream)
 {
-  stream.Read(value.magic)
-    .Read(value.jumping)
-    .Read(value.sliding)
-    .Read(value.gliding);
+  stream.Read(value.spurMagicCount)
+    .Read(value.jumpCount)
+    .Read(value.slidingTime)
+    .Read(value.glidingDistance);
 }
 
 void Horse::Write(const Horse& value, SinkStream& stream)
@@ -239,7 +239,7 @@ void Horse::Write(const Horse& value, SinkStream& stream)
 
   stream.Write(value.vals1.val0)
     .Write(value.vals1.val1)
-    .Write(value.vals1.val2)
+    .Write(value.vals1.dateOfBirth)
     .Write(value.vals1.val3)
     .Write(value.vals1.val4)
     .Write(value.vals1.classProgression)
@@ -293,7 +293,7 @@ void Horse::Read(Horse& value, SourceStream& stream)
 
   stream.Read(value.vals1.val0)
     .Read(value.vals1.val1)
-    .Read(value.vals1.val2)
+    .Read(value.vals1.dateOfBirth)
     .Read(value.vals1.val3)
     .Read(value.vals1.val4)
     .Read(value.vals1.classProgression)
