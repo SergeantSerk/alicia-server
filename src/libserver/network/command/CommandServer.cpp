@@ -120,11 +120,7 @@ CommandServer::CommandServer()
 
 CommandServer::~CommandServer()
 {
-  _server.End();
-  if (_serverThread.joinable())
-  {
-    _serverThread.join();
-  }
+  Stop();
 }
 
 void CommandServer::Host(const asio::ip::address& address, uint16_t port)
@@ -134,6 +130,15 @@ void CommandServer::Host(const asio::ip::address& address, uint16_t port)
     {
       _server.Begin(address, port);
     });
+}
+
+void CommandServer::Stop()
+{
+  _server.End();
+  if (_serverThread.joinable())
+  {
+    _serverThread.join();
+  }
 }
 
 void CommandServer::RegisterCommandHandler(
@@ -188,9 +193,12 @@ void CommandServer::QueueCommand(ClientId client, CommandId command, CommandSupp
       commandSink.Write(encode_message_magic(magic));
       writeBuffer.commit(magic.length);
 
-      spdlog::debug("Sent command message '{}' (0x{:X})",
+      if (not IsMuted(command))
+      {
+        spdlog::debug("Sent command message '{}' (0x{:X})",
         GetCommandName(command),
         static_cast<uint32_t>(command));
+      }
     });
 }
 
@@ -210,10 +218,11 @@ void CommandServer::HandleClientRead(
   SourceStream stream({static_cast<const std::byte*>(buffer.data()), buffer.size()});
 
   const Deferred deferredConsume([&]()
-                                 {
+  {
     // Consume the amount of bytes that were
     // read from the command stream.
-    streamBuf.consume(stream.GetCursor()); });
+    streamBuf.consume(stream.GetCursor());
+  });
 
   while (stream.GetCursor() != stream.Size())
   {
@@ -221,12 +230,13 @@ void CommandServer::HandleClientRead(
     bool isCommandBufferedWhole = true;
 
     const Deferred resetStreamCursor([streamOrigin, &stream, &isCommandBufferedWhole]()
-                                     {
+    {
       // If the command was not buffered whole,
       // reset the stream to the cursor before the command was read,
       // so that it may be read when more data arrive.
       if (not isCommandBufferedWhole)
-        stream.Seek(streamOrigin); });
+        stream.Seek(streamOrigin);
+    });
 
     // Read the message magic.
     uint32_t magicValue{};
@@ -327,17 +337,17 @@ void CommandServer::HandleClientRead(
       if (!IsMuted(commandId))
       {
         spdlog::debug("Processed data for command message '{}' (0x{:X}),\n\n"
-                      "XOR code: {:#X},\n"
-                      "Command data size: {} (padding: {}),\n"
-                      "Actual command data size: {}\n"
-                      "Processed data dump: \n\n{}\n",
-                      GetCommandName(commandId),
-                      magic.id,
-                      code,
-                      commandDataSize,
-                      padding,
-                      actualCommandDataSize,
-                      GenerateByteDump({commandDataBuffer.data(), commandDataSize}));
+          "XOR code: {:#X},\n"
+          "Command data size: {} (padding: {}),\n"
+          "Actual command data size: {}\n"
+          "Processed data dump: \n\n{}\n",
+          GetCommandName(commandId),
+          magic.id,
+          code,
+          commandDataSize,
+          padding,
+          actualCommandDataSize,
+          GenerateByteDump({commandDataBuffer.data(), commandDataSize}));
       }
     }
     else
@@ -363,7 +373,7 @@ void CommandServer::HandleClientRead(
       handler(clientId, commandDataStream);
 
       // There shouldn't be any left-over data in the stream.
-      assert(commandDataStream.GetCursor() == commandDataStream.Size());
+      /*assert(commandDataStream.GetCursor() == commandDataStream.Size());*/
 
       if (!IsMuted(commandId))
       {

@@ -165,11 +165,10 @@ struct RanchCommandMountFamilyTreeCancel
     SourceStream& stream);
 };
 
-//! Serverbound get messenger info command.
 struct RanchCommandEnterRanch
 {
   uint32_t characterUid{};
-  uint32_t code{};
+  uint32_t otp{};
   uint32_t ranchUid{};
 
   //! Writes the command to a provided sink stream.
@@ -199,7 +198,7 @@ struct RanchCommandEnterRanchOK
   // If the horse list takes indexes 0, 1 and 2
   // the player list must use indexes 3, 4 and 5.
   std::vector<RanchHorse> horses{};
-  std::vector<RanchPlayer> users{};
+  std::vector<RanchCharacter> characters{};
 
   uint64_t unk1{};
   uint32_t unk2{};
@@ -277,7 +276,7 @@ struct RanchCommandEnterRanchCancel
 //! Serverbound get messenger info command.
 struct RanchCommandEnterRanchNotify
 {
-  RanchPlayer player{};
+  RanchCharacter character{};
 
   //! Writes the command to a provided sink stream.
   //! @param command Command.
@@ -297,8 +296,44 @@ struct RanchCommandEnterRanchNotify
 //! Serverbound get messenger info command.
 struct RanchCommandRanchSnapshot
 {
-  uint8_t unk0{};
-  std::vector<uint8_t> snapshot{};
+  enum Type : uint8_t
+  {
+    Full = 0, Partial = 1
+  };
+
+  struct FullSpatial
+  {
+    uint16_t member0{};
+    uint32_t member1{};
+    uint16_t member2{};
+    std::array<std::byte, 12> member3{};
+    std::array<std::byte, 16> member4{};
+    float x{};
+    float y{};
+    float z{};
+
+    static void Write(const FullSpatial& structure, SinkStream& stream);
+    static void Read(FullSpatial& structure, SourceStream& stream);
+  };
+
+  struct PartialSpatial
+  {
+    uint16_t member0{};
+    uint32_t member1{};
+    uint16_t member2{};
+    std::array<std::byte, 12> member3{};
+    std::array<std::byte, 16> member4{};
+
+    static void Write(const PartialSpatial& structure, SinkStream& stream);
+    static void Read(PartialSpatial& structure, SourceStream& stream);
+  };
+
+  Type type{};
+  union
+  {
+    FullSpatial full{};
+    PartialSpatial partial;
+  };
 
   //! Writes the command to a provided sink stream.
   //! @param command Command.
@@ -319,8 +354,13 @@ struct RanchCommandRanchSnapshot
 struct RanchCommandRanchSnapshotNotify
 {
   uint16_t ranchIndex{};
-  uint8_t unk0{};
-  std::vector<uint8_t> snapshot{};
+
+  RanchCommandRanchSnapshot::Type type{};
+  union
+  {
+    RanchCommandRanchSnapshot::FullSpatial full;
+    RanchCommandRanchSnapshot::PartialSpatial partial;
+  };
 
   //! Writes the command to a provided sink stream.
   //! @param command Command.
@@ -1059,6 +1099,49 @@ struct RanchCommandRequestNpcDressListCancel
   //! @param stream Source stream.
   static void Read(
     RanchCommandRequestNpcDressListCancel& command,
+    SourceStream& stream);
+};
+
+struct RanchCommandChat
+{
+  std::string message;
+  uint8_t unknown{};
+  uint8_t unknown2{};
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const RanchCommandChat& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    RanchCommandChat& command,
+    SourceStream& stream);
+};
+
+struct RanchCommandChatNotify
+{
+  std::string author;
+  std::string message;
+  uint8_t isBlue{};
+  uint8_t unknown2{};
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const RanchCommandChatNotify& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    RanchCommandChatNotify& command,
     SourceStream& stream);
 };
 

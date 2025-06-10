@@ -49,8 +49,6 @@ LobbyDirector::LobbyDirector(soa::DataDirector& dataDirector, Settings::LobbySet
         && message.constant1 == 281
         && "Game version mismatch");
 
-      _clientUsers[clientId] = message.loginId;
-
       _loginHandler.HandleUserLogin(clientId, message);
     });
 
@@ -159,6 +157,12 @@ LobbyDirector::LobbyDirector(soa::DataDirector& dataDirector, Settings::LobbySet
       if (message.val0 != 1)
         spdlog::error("Client error notification: state[{}], value[{}]", message.val0, message.val1);
     });
+
+  _server.RegisterCommandHandler<LobbyCommandEnterRandomRanch>(
+    CommandId::LobbyEnterRandomRanch,
+    [this](ClientId clientId, auto& command)
+    {
+    });
 }
 
 void LobbyDirector::Initialize()
@@ -182,6 +186,7 @@ void LobbyDirector::Initialize()
 
 void LobbyDirector::Terminate()
 {
+  _server.Stop();
 }
 
 void LobbyDirector::Tick()
@@ -276,11 +281,19 @@ void LobbyDirector::HandleAchievementCompleteList(
   ClientId clientId,
   const LobbyCommandAchievementCompleteList& achievementCompleteList)
 {
-  const auto& userName = _clientUsers[clientId];
-  auto user = *_dataDirector.GetUsers().Get(userName);
+  const auto& clientContext = _clientContext[clientId];
+  auto characterRecord = _dataDirector.GetCharacters().Get(
+    clientContext.characterUid);
 
-  const LobbyCommandAchievementCompleteListOK response{
-    .unk0 = user().characterUid()};
+  LobbyCommandAchievementCompleteListOK response{};
+
+  characterRecord->Immutable([&response](const soa::data::Character& character)
+  {
+    response.unk0 = character.uid();
+  });
+
+  response.achievements.emplace_back().tid = 20'008;
+  response.achievements.emplace_back().tid = 20'004;
 
   _server.QueueCommand<decltype(response)>(
     clientId,
@@ -310,15 +323,36 @@ void LobbyDirector::HandleRequestQuestList(
   ClientId clientId,
   const LobbyCommandRequestQuestList& requestQuestList)
 {
-  const auto& userName = _clientUsers[clientId];
-  auto user = *_dataDirector.GetUsers().Get(userName);
+  const auto& clientContext = _clientContext[clientId];
+  auto characterRecord = _dataDirector.GetCharacters().Get(
+    clientContext.characterUid);
 
-  LobbyCommandRequestQuestListOK response{
-    .unk0 = user().characterUid()};
+  LobbyCommandRequestQuestListOK response{};
+
+  characterRecord->Immutable([&response](const soa::data::Character& character)
+  {
+    response.unk0 = character.uid();
+  });
+
+  response.quests.emplace_back(Quest{
+    .tid = 11'039,
+    .member1 = 1,
+    .member2 = 0xA,
+    .member4 = 3});
+  response.quests.emplace_back(Quest{
+    .tid = 12'012,
+    .member1 = 1,
+    .member2 = 3,
+    .member4 = 3});
+  response.quests.emplace_back(Quest{
+    .tid = 13'010,
+    .member1 = 1,
+    .member2 = 0x14,
+    .member4 = 3});
 
   _server.QueueCommand<decltype(response)>(
     clientId,
-    CommandId::LobbyRequestQuestListOK,
+    CommandId::LobbyAchievementCompleteListOK,
     [response]()
     {
       return response;
@@ -329,11 +363,16 @@ void LobbyDirector::HandleRequestDailyQuestList(
   ClientId clientId,
   const LobbyCommandRequestDailyQuestList& requestQuestList)
 {
-  const auto& userName = _clientUsers[clientId];
-  auto user = *_dataDirector.GetUsers().Get(userName);
+  const auto& clientContext = _clientContext[clientId];
+  auto characterRecord = _dataDirector.GetCharacters().Get(
+    clientContext.characterUid);
 
-  LobbyCommandRequestDailyQuestListOK response{
-    .val0 = user().characterUid()};
+  LobbyCommandRequestDailyQuestListOK response{};
+
+  characterRecord->Immutable([&response](const soa::data::Character& character)
+  {
+    response.val0 = character.uid();
+  });
 
   _server.QueueCommand<decltype(response)>(
     clientId,
@@ -347,11 +386,11 @@ void LobbyDirector::HandleRequestSpecialEventList(
   ClientId clientId,
   const LobbyCommandRequestSpecialEventList& requestQuestList)
 {
-  const auto& userName = _clientUsers[clientId];
-  auto user = *_dataDirector.GetUsers().Get(userName);
+  const auto& clientContext = _clientContext[clientId];
+  auto characterRecord = _dataDirector.GetCharacters().Get(
+    clientContext.characterUid);
 
-  LobbyCommandRequestSpecialEventListOK response{
-    .unk0 = user().characterUid()};
+  LobbyCommandRequestSpecialEventListOK response{};
 
   _server.QueueCommand<decltype(response)>(
     clientId,
@@ -366,11 +405,25 @@ void LobbyDirector::HandleEnterRanch(
   ClientId clientId,
   const LobbyCommandEnterRanch& requestEnterRanch)
 {
+  const auto& clientContext = _clientContext[clientId];
+  auto characterRecord = _dataDirector.GetCharacters().Get(
+    clientContext.characterUid);
+
+  if (not characterRecord)
+  {
+    throw std::runtime_error(
+      std::format("Character [{}] not available", clientContext.characterUid));
+  }
+
   LobbyCommandEnterRanchOK response{
-    .ranchUid = 1,
     .code = 0x44332211,
     .ip = static_cast<uint32_t>(htonl(_settings.ranchAdvAddress.to_uint())),
     .port = _settings.ranchAdvPort};
+
+  characterRecord->Immutable([&response](const soa::data::Character& character)
+  {
+    response.ranchUid = character.ranchUid();
+  });
 
   _server.QueueCommand<decltype(response)>(
     clientId,
@@ -453,5 +506,19 @@ void LobbyDirector::HandleGuildPartyList(
 //       LobbyCommandGuildPartyListOK::Write(response, sink);
 //     });
 // }
+
+void LobbyCommandEnterRandomRanch::Write(
+  const LobbyCommandEnterRandomRanch& command,
+  SinkStream& stream)
+{
+  throw std::runtime_error("Not implemented");
+}
+
+void LobbyCommandEnterRandomRanch::Read(
+  LobbyCommandEnterRandomRanch& command,
+  SourceStream& stream)
+{
+  // Empty.
+}
 
 } // namespace alicia

@@ -103,6 +103,10 @@ private:
     ClientId clientId,
     const RanchCommandRequestNpcDressList& requestNpcDressList);
 
+  void HandleChat(
+    ClientId clientId,
+    const RanchCommandChat& command);
+
   //!
   Settings::RanchSettings _settings;
   //!
@@ -110,12 +114,20 @@ private:
   //!
   CommandServer _server;
 
+  struct ClientContext
+  {
+    soa::data::Uid characterUid;
+    soa::data::Uid ranchUid;
+    uint8_t busyState{0};
+  };
+
   //!
-  std::unordered_map<ClientId, std::string> _clientUsers;
+  std::unordered_map<ClientId, ClientContext> _clientContext;
 
   struct RanchInstance
   {
     WorldTracker _worldTracker;
+    std::unordered_set<ClientId> _clients;
   };
   std::unordered_map<soa::data::Uid, RanchInstance> _ranches;
 };

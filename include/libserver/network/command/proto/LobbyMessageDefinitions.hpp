@@ -70,7 +70,7 @@ struct LobbyCommandLoginOK
   std::string status{};
 
   std::vector<Item> characterEquipment{};
-  std::vector<Item> horseEquipment{};
+  std::vector<Item> mountEquipment{};
 
   uint16_t level{};
   int32_t carrots{};
@@ -124,7 +124,7 @@ struct LobbyCommandLoginOK
 
   // std::bitset
   //! Bit 2: Has played before
-  uint32_t val8{};
+  uint32_t bitfield{};
 
   struct Struct1
   {
@@ -895,8 +895,8 @@ struct Event
 struct LobbyCommandRequestSpecialEventListOK
 {
   uint32_t unk0;
-  std::vector<Quest> unk1;
-  std::vector<Event> unk2;
+  std::vector<Quest> quests;
+  std::vector<Event> events;
 
   //! Writes the command to a provided sink stream.
   //! @param command Command.
@@ -1113,6 +1113,23 @@ struct LobbyCommandGuildPartyListOK
   //! @param stream Source stream.
   static void Read(
     LobbyCommandGuildPartyListOK& command,
+    SourceStream& stream);
+};
+
+struct LobbyCommandEnterRandomRanch
+{
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const LobbyCommandEnterRandomRanch& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    LobbyCommandEnterRandomRanch& command,
     SourceStream& stream);
 };
 

@@ -28,6 +28,7 @@ target_compile_features(project-properties
 # alicia-libserver target
 add_library(alicia-libserver STATIC
         src/libserver/data/DataDirector.cpp
+        src/libserver/data/helper/ProtocolHelper.cpp
         src/libserver/data/file/FileDataSource.cpp
         #src/libserver/data/pq/PqDataSource.cpp
         src/libserver/network/Server.cpp
@@ -85,7 +86,7 @@ add_custom_command(
         TARGET alicia-server POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/resources
-        ${CMAKE_CURRENT_BINARY_DIR}/resources)
+        ${CMAKE_CURRENT_BINARY_DIR})
 
 install(TARGETS alicia-server DESTINATION dist)
 install(DIRECTORY resources DESTINATION dist)  

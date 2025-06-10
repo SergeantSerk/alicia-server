@@ -19,6 +19,8 @@
 
 #include "libserver/network/command/proto/RanchMessageDefinitions.hpp"
 
+#include <format>
+
 namespace alicia
 {
 
@@ -66,9 +68,9 @@ void WriteRanchHorse(
 
 void WriteRanchPlayer(
   SinkStream& stream,
-  const RanchPlayer& ranchPlayer)
+  const RanchCharacter& ranchPlayer)
 {
-  stream.Write(ranchPlayer.userUid)
+  stream.Write(ranchPlayer.uid)
     .Write(ranchPlayer.name)
     .Write(ranchPlayer.gender)
     .Write(ranchPlayer.unk0)
@@ -76,7 +78,7 @@ void WriteRanchPlayer(
     .Write(ranchPlayer.description);
 
   stream.Write(ranchPlayer.character)
-    .Write(ranchPlayer.horse);
+    .Write(ranchPlayer.mount);
 
   stream.Write(static_cast<uint8_t>(ranchPlayer.characterEquipment.size()));
   for (const Item& item : ranchPlayer.characterEquipment)
@@ -224,7 +226,7 @@ void RanchCommandEnterRanch::Read(
   SourceStream& stream)
 {
   stream.Read(command.characterUid)
-    .Read(command.code)
+    .Read(command.otp)
     .Read(command.ranchUid);
 }
 
@@ -242,8 +244,8 @@ void RanchCommandEnterRanchOK::Write(
     WriteRanchHorse(stream, horse);
   }
 
-  stream.Write(static_cast<uint8_t>(command.users.size()));
-  for (auto& player : command.users)
+  stream.Write(static_cast<uint8_t>(command.characters.size()));
+  for (auto& player : command.characters)
   {
     WriteRanchPlayer(stream, player);
   }
@@ -307,7 +309,7 @@ void RanchCommandEnterRanchNotify::Write(
   const RanchCommandEnterRanchNotify& command,
   SinkStream& stream)
 {
-  WriteRanchPlayer(stream, command.player);
+  WriteRanchPlayer(stream, command.character);
 }
 
 void RanchCommandEnterRanchNotify::Read(
@@ -315,6 +317,90 @@ void RanchCommandEnterRanchNotify::Read(
   SourceStream& stream)
 {
   throw std::logic_error("Not implemented.");
+}
+
+void RanchCommandRanchSnapshot::FullSpatial::Write(
+  const FullSpatial& structure,
+  SinkStream& stream)
+{
+  stream.Write(structure.member0)
+    .Write(structure.member1)
+    .Write(structure.member2);
+
+  for (const auto& byte : structure.member3)
+  {
+    stream.Write(byte);
+  }
+
+  for (const auto& byte : structure.member4)
+  {
+    stream.Write(byte);
+  }
+
+  stream.Write(structure.x)
+    .Write(structure.y)
+    .Write(structure.z);
+}
+
+void RanchCommandRanchSnapshot::FullSpatial::Read(
+  FullSpatial& structure,
+  SourceStream& stream)
+{
+  stream.Read(structure.member0)
+    .Read(structure.member1)
+    .Read(structure.member2);
+
+  for (auto& byte : structure.member3)
+  {
+    stream.Read(byte);
+  }
+
+  for (auto& byte : structure.member4)
+  {
+    stream.Read(byte);
+  }
+
+  stream.Read(structure.x)
+    .Read(structure.y)
+    .Read(structure.z);
+}
+
+void RanchCommandRanchSnapshot::PartialSpatial::Write(
+  const PartialSpatial& structure,
+  SinkStream& stream)
+{
+  stream.Write(structure.member0)
+    .Write(structure.member1)
+    .Write(structure.member2);
+
+  for (const auto& byte : structure.member3)
+  {
+    stream.Write(byte);
+  }
+
+  for (const auto& byte : structure.member4)
+  {
+    stream.Write(byte);
+  }
+}
+
+void RanchCommandRanchSnapshot::PartialSpatial::Read(
+  PartialSpatial& structure,
+  SourceStream& stream)
+{
+  stream.Read(structure.member0)
+    .Read(structure.member1)
+    .Read(structure.member2);
+
+  for (auto& byte : structure.member3)
+  {
+    stream.Read(byte);
+  }
+
+  for (auto& byte : structure.member4)
+  {
+    stream.Read(byte);
+  }
 }
 
 void RanchCommandRanchSnapshot::Write(
@@ -328,20 +414,53 @@ void RanchCommandRanchSnapshot::Read(
   RanchCommandRanchSnapshot& command,
   SourceStream& stream)
 {
-  stream.Read(command.unk0);
+  stream.Read(command.type);
 
-  auto snapshotLength = stream.Size() - stream.GetCursor();
-  command.snapshot.resize(snapshotLength);
-  stream.Read(command.snapshot.data(), snapshotLength);
+  switch (command.type)
+  {
+    case Full:
+    {
+      stream.Read(command.full);
+      break;
+    }
+    case Partial:
+    {
+      stream.Read(command.partial);
+      break;
+    }
+    default:
+    {
+      throw std::runtime_error(
+        std::format("Update type {} not implemented", static_cast<uint32_t>(command.type)));
+    }
+  }
 }
 
 void RanchCommandRanchSnapshotNotify::Write(
   const RanchCommandRanchSnapshotNotify& command,
   SinkStream& stream)
 {
-  stream.Write(command.ranchIndex);
-  stream.Write(command.unk0);
-  stream.Write(command.snapshot.data(), command.snapshot.size());
+  stream.Write(command.ranchIndex)
+    .Write(command.type);
+
+  switch (command.type)
+  {
+    case RanchCommandRanchSnapshot::Full:
+    {
+      stream.Write(command.full);
+      break;
+    }
+    case RanchCommandRanchSnapshot::Partial:
+    {
+      stream.Write(command.partial);
+      break;
+    }
+    default:
+    {
+      throw std::runtime_error(
+        std::format("Update type {} not implemented", static_cast<uint32_t>(command.type)));
+    }
+  }
 }
 
 void RanchCommandRanchSnapshotNotify::Read(
@@ -925,6 +1044,39 @@ void RanchCommandRequestNpcDressListCancel::Read(
   SourceStream& stream)
 {
   // Empty
+}
+
+void RanchCommandChat::Write(
+  const RanchCommandChat& command,
+  SinkStream& stream)
+{
+  throw std::runtime_error("Not implemented");
+}
+
+void RanchCommandChat::Read(
+RanchCommandChat& command,
+  SourceStream& stream)
+{
+  stream.Read(command.message)
+    .Read(command.unknown)
+    .Read(command.unknown2);
+}
+
+void RanchCommandChatNotify::Write(
+  const RanchCommandChatNotify& command,
+  SinkStream& stream)
+{
+  stream.Write(command.author)
+    .Write(command.message)
+    .Write(command.isBlue)
+    .Write(command.unknown2);
+}
+
+void RanchCommandChatNotify::Read(
+  RanchCommandChatNotify& command,
+  SourceStream& stream)
+{
+  throw std::runtime_error("Not implemented");
 }
 
 } // namespace alicia
