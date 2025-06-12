@@ -6,11 +6,20 @@ name: Build Docker image
 # documentation.
 
 on:
-    # We want this to be a reusable workflow that builds the
-    # Docker image on workflow call and pull requests
-    workflow_call:
-    pull_request:
-        branches: [ "master" ]
+  # We want this to be a reusable workflow that builds the
+  # Docker image on workflow call and pull requests
+  workflow_call:
+    outputs:
+      tags:
+        value: ${{ jobs.build.outputs.tags }}
+        labels:
+          value: ${{ jobs.build.outputs.labels }}
+        annotations:
+          value: ${{ jobs.build.outputs.annotations }}
+        digest:
+          value: ${{ jobs.build.outputs.digest }}
+  pull_request:
+    branches: [ "master" ]
 
 jobs:
   build:
@@ -28,6 +37,11 @@ jobs:
       # This is used to complete the identity challenge
       # with sigstore/fulcio when running outside of PRs.
       id-token: write
+    outputs:
+      tags: ${{ steps.meta.outputs.tags }}
+      labels: ${{ steps.meta.outputs.labels }}
+      annotations: ${{ steps.meta.outputs.annotations }}
+      digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - name: Checkout repository
@@ -55,7 +69,7 @@ jobs:
       # Build Docker image with Buildx
       # https://github.com/docker/build-push-action
       - name: Build Docker image
-        id: build-and-push
+        id: build
         uses: docker/build-push-action@v6.10.0
         with:
           context: .

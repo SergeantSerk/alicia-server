@@ -14,10 +14,11 @@ env:
 
 jobs:
     publish:
+        runs-on: ubuntu-latest
         steps:
             - name: Build Docker images
-              id: build-docker-image
-              uses: ./build.yml
+              id: build
+              uses: ./docker/build.yml
 
             # Install the cosign tool except on PR
             # https://github.com/sigstore/cosign-installer
@@ -41,9 +42,9 @@ jobs:
               uses: docker/build-push-action@v6.10.0
               with:
                 push: true
-                tags: ${{ steps.meta.outputs.tags }}
-                labels: ${{ steps.meta.outputs.labels }}
-                annotations: ${{ steps.meta.outputs.annotations }}
+                tags: ${{ steps.build.outputs.tags }}
+                labels: ${{ steps.build.outputs.labels }}
+                annotations: ${{ steps.build.outputs.annotations }}
                 cache-from: type=gha
                 cache-to: type=gha,mode=max
 
@@ -54,9 +55,9 @@ jobs:
             # https://github.com/sigstore/cosign
             - name: Sign the published Docker image
               env:
-              # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
-              TAGS: ${{ steps.meta.outputs.tags }}
-              DIGEST: ${{ steps.build-and-push.outputs.digest }}
+                # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
+                TAGS: ${{ steps.build.outputs.tags }}
+                DIGEST: ${{ steps.build.outputs.digest }}
               # This step uses the identity token to provision an ephemeral certificate
               # against the sigstore community Fulcio instance.
               run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
