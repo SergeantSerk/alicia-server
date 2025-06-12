@@ -14,8 +14,11 @@ env:
 
 jobs:
     publish:
-        uses: ./build.yml
         steps:
+            - name: Build Docker images
+              id: build-docker-image
+              uses: ./build.yml
+
             # Install the cosign tool except on PR
             # https://github.com/sigstore/cosign-installer
             - name: Install cosign

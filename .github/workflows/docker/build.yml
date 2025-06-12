@@ -6,11 +6,9 @@ name: Build Docker image
 # documentation.
 
 on:
+    # We want this to be a reusable workflow that builds the
+    # Docker image on workflow call and pull requests
     workflow_call:
-    push:
-        branches: [ "master" ]
-        # Publish semver tags as releases.
-        tags: [ 'v*.*.*' ]
     pull_request:
         branches: [ "master" ]
 
