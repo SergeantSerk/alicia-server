@@ -12,12 +12,12 @@ on:
     outputs:
       tags:
         value: ${{ jobs.build.outputs.tags }}
-        labels:
-          value: ${{ jobs.build.outputs.labels }}
-        annotations:
-          value: ${{ jobs.build.outputs.annotations }}
-        digest:
-          value: ${{ jobs.build.outputs.digest }}
+      labels:
+        value: ${{ jobs.build.outputs.labels }}
+      annotations:
+        value: ${{ jobs.build.outputs.annotations }}
+      digest:
+        value: ${{ jobs.build.outputs.digest }}
   pull_request:
     branches: [ "master" ]
 
