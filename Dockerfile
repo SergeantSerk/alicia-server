@@ -2,14 +2,13 @@
 ARG BUILDER_REPO_PATH=/builder/alicia-server
 
 FROM alpine:3 AS builder
-RUN apk add --no-cache boost-dev build-base cmake git
+RUN apk add --no-cache boost-dev build-base cmake
 
 ARG BUILDER_REPO_PATH
 ARG BUILD_TYPE=RelWithDebInfo
 
 WORKDIR ${BUILDER_REPO_PATH}
 COPY . .
-RUN git submodule update --init --recursive
 
 RUN cmake -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DBUILD_TESTS=False . -B ./build
 RUN cmake --build ./build --parallel
