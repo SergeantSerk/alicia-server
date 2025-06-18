@@ -11,9 +11,7 @@ services:
    ports:
      - "10030-10033:10030-10033"
    volumes:
-     - "./config:/opt/alicia-server/config"
-     - "./data:/opt/alicia-server/data"
-     - "./logs:/opt/alicia-server/logs"
+     - "./settings:/opt/alicia-server"
 ```
 
 #### Server configuration
