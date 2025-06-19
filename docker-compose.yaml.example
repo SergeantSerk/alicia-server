@@ -1,0 +1,7 @@
+services:
+  server:
+    image: 'ghcr.io/story-of-alicia/alicia-server:latest'
+    ports:
+      - "10030-10033:10030-10033"
+    volumes:
+      - "./settings:/opt/alicia-server"

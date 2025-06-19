@@ -3,3 +3,6 @@ out/
 cmake-build-*/
 dist/
 .vscode/
+
+docker-compose.yaml
+settings/

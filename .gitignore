@@ -11,3 +11,7 @@ Testing/
 
 #DS Store
 .DS_Store
+
+# User modified Docker files
+docker-compose.yaml
+settings/

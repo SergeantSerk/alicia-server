@@ -25,6 +25,7 @@ LABEL org.opencontainers.image.description="Dedicated server implementation for 
 RUN apk add --no-cache libstdc++
 WORKDIR /usr/local/bin
 COPY --from=builder ${BUILDER_REPO_PATH}/dist .
+COPY entrypoint.sh .
 
 WORKDIR /opt/alicia-server
-ENTRYPOINT ["/usr/local/bin/alicia-server"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh", "/usr/local/bin/alicia-server"]
