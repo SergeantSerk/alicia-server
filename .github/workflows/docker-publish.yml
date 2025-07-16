@@ -24,6 +24,7 @@ jobs:
     name: Build ${{ github.event_name != 'pull_request' && '& Publish' || '' }} (${{ matrix.arch }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: amd64
@@ -57,15 +58,13 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # for git tags (v1.2.3 -> "1.2.3")
-            type=ref,event=push,match=tags,replacement=${GITHUB_REF_NAME}
-            # latest on master branch
-            type=ref,event=push,branch=master,value=latest
-            # branch names (except master)
-            type=ref,event=push,except=tags
-            # for pull requests: pr-<run_id>
-            type=raw,event=pull_request,value=pr-${{ github.run_id }}
-            # commit SHA tag
+            # any git tag, e.g. refs/tags/v1.2.3 -> "v1.2.3"
+            type=ref,event=push,ref=tags/*,format={{refName}}
+            # push to master (or any branch) -> branch name
+            type=ref,event=branch
+            # pull_request -> pr-<number>
+            type=ref,event=pr
+            # always include SHA
             type=sha
           # optional: set Docker labels
           labels: |
