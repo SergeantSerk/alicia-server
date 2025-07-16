@@ -58,11 +58,13 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # branch-push (e.g. master → "master")
+            # set latest tag for default branch
+            type=raw,value=latest,enable={{is_default_branch}}
+            # branch-push (e.g. master -> "master")
             type=ref,event=branch
-            # pull_request builds → "pr-<number>"
+            # pull_request builds -> "pr-<number>"
             type=ref,event=pr
-            # semver tags (v1.2.3 → "1.2.3")
+            # semver tags (v1.2.3 -> "1.2.3")
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
@@ -82,3 +84,5 @@ jobs:
           # metadata-action will output a space-separated list of fully-qualified tags
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
