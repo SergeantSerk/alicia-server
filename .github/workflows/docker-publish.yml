@@ -53,17 +53,24 @@ jobs:
 
       - name: Determine image name & tag
         id: meta
-        run: |
-          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/${GITHUB_REPOSITORY##*/}"
-          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            TAG="${GITHUB_REF_NAME}"
-          elif [[ "${GITHUB_REF_NAME}" == "master" ]]; then
-            TAG="latest"
-          else
-            TAG="pr-${GITHUB_RUN_ID}"
-          fi
-          echo "IMAGE=$IMAGE" >> $GITHUB_OUTPUT
-          echo "TAG=$TAG"     >> $GITHUB_OUTPUT
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # for git tags (v1.2.3 -> "1.2.3")
+            type=ref,event=push,match=tags,replacement=${GITHUB_REF_NAME}
+            # latest on master branch
+            type=ref,event=push,branch=master,value=latest
+            # branch names (except master)
+            type=ref,event=push,except=tags
+            # for pull requests: pr-<run_id>
+            type=raw,event=pull_request,value=pr-${{ github.run_id }}
+            # commit SHA tag
+            type=sha
+          # optional: set Docker labels
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
 
       - name: Build ${{ github.event_name != 'pull_request' && '& push' || '' }} ${{ matrix.arch }}
         uses: docker/build-push-action@v6
@@ -71,7 +78,6 @@ jobs:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
           platforms: ${{ matrix.platform }}
-          tags: |
-            ${{ steps.meta.outputs.IMAGE }}:${{ steps.meta.outputs.TAG }}
-            ${{ steps.meta.outputs.IMAGE }}:${{ matrix.arch }}-${{ steps.meta.outputs.TAG }}
-            ${{ steps.meta.outputs.IMAGE }}:sha-${{ github.sha }}
+          # metadata-action will output a space-separated list of fully-qualified tags
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
