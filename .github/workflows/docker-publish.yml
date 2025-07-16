@@ -58,13 +58,15 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # any git tag, e.g. refs/tags/v1.2.3 -> "v1.2.3"
-            type=ref,event=push,ref=tags/*,format={{refName}}
-            # push to master (or any branch) -> branch name
+            # branch-push (e.g. master → "master")
             type=ref,event=branch
-            # pull_request -> pr-<number>
+            # pull_request builds → "pr-<number>"
             type=ref,event=pr
-            # always include SHA
+            # semver tags (v1.2.3 → "1.2.3")
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            # always add a sha-<shortSHA> tag
             type=sha
           # optional: set Docker labels
           labels: |
