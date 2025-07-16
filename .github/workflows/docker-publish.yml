@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   build:
-    name: Build & Publish (${{ matrix.arch }})
+    name: Build ${{ github.event_name != 'pull_request' && '& Publish' || '' }} (${{ matrix.arch }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
