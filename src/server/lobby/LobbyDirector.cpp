@@ -560,7 +560,7 @@ void LobbyDirector::HandleEnterRanch(
   const protocol::LobbyCommandEnterRanch& command)
 {
   const auto& clientContext = _clientContext[clientId];
-  auto characterRecord = GetServerInstance().GetDataDirector().GetCharacter(
+  const auto characterRecord = GetServerInstance().GetDataDirector().GetCharacter(
     command.characterUid);
 
   if (not characterRecord)
@@ -581,9 +581,10 @@ void LobbyDirector::QueueEnterRanchOK(
   ClientId clientId,
   data::Uid rancherUid)
 {
+  const auto& clientContext = _clientContext[clientId];
   protocol::LobbyCommandEnterRanchOK response{
     .rancherUid = rancherUid,
-    .otp = 0x44332211,
+    .otp = GetServerInstance().GetOtpRegistry().GrantCode(clientContext.characterUid),
     .ip = static_cast<uint32_t>(htonl(
       GetSettings().ranchAdvAddress.to_uint())),
     .port = GetSettings().ranchAdvPort};
