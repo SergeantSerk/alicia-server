@@ -26,3 +26,5 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           push: false # disable push for CI
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
