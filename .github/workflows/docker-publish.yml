@@ -11,7 +11,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.repository_owner }}/${{ github.event.repository.name }}
 
 jobs:
   # Build job using matrix strategy for parallelization
@@ -40,6 +40,7 @@ jobs:
       image-digest-armv7: ${{ matrix.cache-scope == 'armv7' && steps.build.outputs.digest || '' }}
       tags: ${{ steps.meta.outputs.tags }}
       push: ${{ steps.push.outputs.push }}
+      repo-name: ${{ steps.repo.outputs.name }}
 
     steps:
       - name: Checkout repository
@@ -59,11 +60,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Convert repository name to lowercase
+        id: repo
+        run: echo "name=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -91,7 +96,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.cache-scope }}
           cache-to: type=gha,mode=max,scope=${{ matrix.cache-scope }}
-          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=${{ steps.push.outputs.push }},name-canonical=true,push=${{ steps.push.outputs.push }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }},push-by-digest=${{ steps.push.outputs.push }},name-canonical=true,push=${{ steps.push.outputs.push }}
 
   # Create and push manifest
   manifest:
@@ -125,9 +130,9 @@ jobs:
               # Create manifest list combining all platform digests
               docker buildx imagetools create \
                 --tag "$tag" \
-                "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.image-digest-amd64 }}" \
-                "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.image-digest-arm64 }}" \
-                "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.image-digest-armv7 }}"
+                "${{ env.REGISTRY }}/${{ needs.build.outputs.repo-name }}@${{ needs.build.outputs.image-digest-amd64 }}" \
+                "${{ env.REGISTRY }}/${{ needs.build.outputs.repo-name }}@${{ needs.build.outputs.image-digest-arm64 }}" \
+                "${{ env.REGISTRY }}/${{ needs.build.outputs.repo-name }}@${{ needs.build.outputs.image-digest-armv7 }}"
               
               echo "✅ Manifest created and pushed for $tag"
             fi
