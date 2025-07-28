@@ -119,8 +119,8 @@ jobs:
 
       - name: Create and push manifest
         run: |
-          # Get the tags from any of the build jobs (they're all the same)
-          TAGS=$(echo '${{ needs.build.outputs.tags }}' | head -n1)
+          # Get all the tags from the build job
+          TAGS='${{ needs.build.outputs.tags }}'
           
           # Create manifest for each tag
           echo "$TAGS" | while IFS= read -r tag; do
@@ -140,7 +140,7 @@ jobs:
 
       - name: Inspect manifests
         run: |
-          TAGS=$(echo '${{ needs.build.outputs.tags }}' | head -n1)
+          TAGS='${{ needs.build.outputs.tags }}'
           echo "$TAGS" | while IFS= read -r tag; do
             if [[ -n "$tag" ]]; then
               echo "📋 Manifest for $tag:"
