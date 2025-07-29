@@ -40,11 +40,11 @@ jobs:
       packages: write
     
     outputs:
-      image-digest-amd64: ${{ matrix.cache-scope == 'amd64' && steps.build.outputs.digest || '' }}
-      image-digest-arm64: ${{ matrix.cache-scope == 'arm64' && steps.build.outputs.digest || '' }}
-      image-digest-armv7: ${{ matrix.cache-scope == 'armv7' && steps.build.outputs.digest || '' }}
+      image-digest-amd64: ${{ matrix.cache-scope == 'amd64' && steps.build-and-push.outputs.digest || '' }}
+      image-digest-arm64: ${{ matrix.cache-scope == 'arm64' && steps.build-and-push.outputs.digest || '' }}
+      image-digest-armv7: ${{ matrix.cache-scope == 'armv7' && steps.build-and-push.outputs.digest || '' }}
       tags: ${{ steps.meta.outputs.tags }}
-      push: ${{ steps.push.outputs.push }}
+      push: ${{ github.event_name != 'pull_request' }}
       repo-name: ${{ env.IMAGE_NAME }}
 
     steps:
