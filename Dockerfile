@@ -32,7 +32,7 @@ LABEL org.opencontainers.image.source=https://github.com/Story-Of-Alicia/alicia-
 LABEL org.opencontainers.image.description="Dedicated server implementation for the Alicia game series"
 
 # Setup the runtime environent
-RUN apk add --no-cache libstdc++ icu icu-data-full
+RUN apk add --no-cache icu icu-data-full libstdc++
 
 WORKDIR /opt/alicia-server
 
