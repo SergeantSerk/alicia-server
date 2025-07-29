@@ -92,6 +92,7 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.cache-scope }}
           cache-to: type=gha,mode=max,scope=${{ matrix.cache-scope }}
