@@ -45,7 +45,7 @@ jobs:
       image-digest-armv7: ${{ matrix.cache-scope == 'armv7' && steps.build-and-push.outputs.digest || '' }}
       tags: ${{ steps.meta.outputs.tags }}
       push: ${{ github.event_name != 'pull_request' }}
-      repo-name: ${{ env.IMAGE_NAME }}
+      repo-name: ${{ steps.repo.outputs.name }}
 
     steps:
       - name: Checkout repository
