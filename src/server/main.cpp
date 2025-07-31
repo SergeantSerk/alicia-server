@@ -169,6 +169,7 @@ int main(int argc, char** argv)
   server::ServerInstance serverInstance(resourceDirectory);
   serverInstance.Initialize();
 
+  spdlog::info("Some test log blah blah code changes build me");
   spdlog::info(
     "Server started up in {}ms",
     std::chrono::duration_cast<std::chrono::milliseconds>(
