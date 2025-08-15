@@ -63,6 +63,11 @@ void RanchCommandUseItemOK::Write(
           stream.Write(command.play);
           break;
         }
+      case ActionType::Action4:
+        {
+          // Action4 does not read anything else
+          break;
+        }
       default:
         throw std::runtime_error("Not implemented.");
     }
