@@ -43,35 +43,6 @@ void RanchCommandUseItem::Read(
     .Read(command.play);
 }
 
-void RanchCommandUseItemOK::ActionTwoBytes::Write(
-  const ActionTwoBytes& action,
-  SinkStream& stream)
-{
-  stream.Write(action.xpReward)
-    .Write(action.play);
-}
-
-void RanchCommandUseItemOK::ActionTwoBytes::Read(
-  ActionTwoBytes& action,
-  SourceStream& stream)
-{
-  throw std::runtime_error("Not implemented.");
-}
-
-void RanchCommandUseItemOK::ActionOneByte::Write(
-  const ActionOneByte& action,
-  SinkStream& stream)
-{
-  stream.Write(action.unk0);
-}
-
-void RanchCommandUseItemOK::ActionOneByte::Read(
-  ActionOneByte& action,
-  SourceStream& stream)
-{
-  throw std::runtime_error("Not implemented.");
-}
-
 void RanchCommandUseItemOK::Write(
   const RanchCommandUseItemOK& command,
   SinkStream& stream)
@@ -80,26 +51,21 @@ void RanchCommandUseItemOK::Write(
     .Write(command.updatedItemCount);
 
   stream.Write(command.type);
-  switch (command.type)
+  if (command.type != ActionType::Empty)
   {
-    case ActionType::Empty:
-      {
-        break;
-      }
-    case ActionType::Action1:
-    case ActionType::Action2:
-    case ActionType::Action3:
-      {
-        stream.Write(command.actionTwoBytes);
-        break;
-      }
-    case ActionType::Action4:
-      {
-        stream.Write(command.actionOneByte);
-        break;
-      }
-    default:
-      throw std::runtime_error("Not implemented.");
+    stream.Write(command.xpReward);
+    switch (command.type)
+    {
+      case ActionType::Action1:
+      case ActionType::Action2:
+      case ActionType::Action3:
+        {
+          stream.Write(command.play);
+          break;
+        }
+      default:
+        throw std::runtime_error("Not implemented.");
+    }
   }
 }
 

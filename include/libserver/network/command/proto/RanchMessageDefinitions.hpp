@@ -2898,34 +2898,6 @@ struct RanchCommandUseItemOK
     CriticalPerfect = 4
   };
 
-  struct ActionTwoBytes
-  {
-    // Gives less % as the player levels up but the unit remains the same
-    // Likely means that the max percentage per level is increased
-    // E.g. level 1 = 100 points, level 2 = 200 points etc (arbitrary example)
-    uint8_t xpReward{};
-    RanchCommandUseItemOK::PlayResponse play{};
-
-    static void Write(
-      const ActionTwoBytes& action,
-      SinkStream& stream);
-    static void Read(
-      ActionTwoBytes& action,
-      SourceStream& stream);
-  };
-
-  struct ActionOneByte
-  {
-    uint8_t unk0{};
-
-    static void Write(
-      const ActionOneByte& action,
-      SinkStream& stream);
-    static void Read(
-      ActionOneByte& action,
-      SourceStream& stream);
-  };
-
   uint32_t itemUid{};
   //! Updates the client-side count of the item used for care.
   //! Setting it to 0 removes the item completely.
@@ -2934,8 +2906,11 @@ struct RanchCommandUseItemOK
   // Action points to different structures depending on type
   ActionType type{};
 
-  ActionTwoBytes actionTwoBytes{};
-  ActionOneByte actionOneByte{};
+  // Gives less % as the player levels up but the unit remains the same
+  // Likely means that the max percentage per level is increased
+  // E.g. level 1 = 100 points, level 2 = 200 points etc (arbitrary example)
+  uint8_t xpReward{};
+  RanchCommandUseItemOK::PlayResponse play{};
 
   static Command GetCommand()
   {

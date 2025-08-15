@@ -2022,7 +2022,7 @@ void RanchDirector::HandleUseCleanItem(
 
   // Clean tab is the second tab, hence the use of RanchCommandUseItemOK::ActionType::Action2
   response.type = protocol::RanchCommandUseItemOK::ActionType::Action2;
-  response.actionTwoBytes.play = protocol::RanchCommandUseItemOK::PlayResponse::CriticalGood; // 2
+  response.play = protocol::RanchCommandUseItemOK::PlayResponse::CriticalGood; // 2
 
   // TODO: Update the horse's stats based on the clean item used.
 }
@@ -2044,15 +2044,15 @@ void RanchDirector::HandleUsePlayItem(
   switch (command.play)
   {
     case protocol::RanchCommandUseItem::Play::Bad:
-      response.actionTwoBytes.play = protocol::RanchCommandUseItemOK::PlayResponse::Bad;
+      response.play = protocol::RanchCommandUseItemOK::PlayResponse::Bad;
       break;
     case protocol::RanchCommandUseItem::Play::Good:
-      response.actionTwoBytes.play = crit ?
+      response.play = crit ?
         protocol::RanchCommandUseItemOK::PlayResponse::CriticalGood :
         protocol::RanchCommandUseItemOK::PlayResponse::Good;
       break;
     case protocol::RanchCommandUseItem::Play::Perfect:
-      response.actionTwoBytes.play = crit ?
+      response.play = crit ?
         protocol::RanchCommandUseItemOK::PlayResponse::CriticalPerfect :
         protocol::RanchCommandUseItemOK::PlayResponse::Perfect;
       break;
@@ -2067,13 +2067,13 @@ void RanchDirector::HandleUsePlayItem(
       : command.play == protocol::RanchCommandUseItem::Play::Good
         ? "Good"
         : "Perfect",
-    response.actionTwoBytes.play == protocol::RanchCommandUseItemOK::PlayResponse::Bad
+    response.play == protocol::RanchCommandUseItemOK::PlayResponse::Bad
       ? "Bad"
-      : response.actionTwoBytes.play == protocol::RanchCommandUseItemOK::PlayResponse::Good
+      : response.play == protocol::RanchCommandUseItemOK::PlayResponse::Good
         ? "Good"
-        : response.actionTwoBytes.play == protocol::RanchCommandUseItemOK::PlayResponse::CriticalGood
+        : response.play == protocol::RanchCommandUseItemOK::PlayResponse::CriticalGood
           ? "Critical Good"
-          : response.actionTwoBytes.play == protocol::RanchCommandUseItemOK::PlayResponse::Perfect
+          : response.play == protocol::RanchCommandUseItemOK::PlayResponse::Perfect
             ? "Perfect"
             : "Critical Perfect");
 
