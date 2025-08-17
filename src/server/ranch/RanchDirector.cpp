@@ -1070,15 +1070,50 @@ std::vector<std::string> RanchDirector::HandleCommand(
         selectedPresetItems.insert(selectedPresetItems.end(), it.begin(), it.end());
       }
 
-      // Check if item count is valid. Cannot give less than 1 item.
       uint32_t itemCount = command.size() < 4 ? 100 : std::atoi(command[3].c_str());
+      // Check if item count is valid. Cannot give less than 1 item.
       if (itemCount < 1)
       {
         return {"Invalid item count. Must be greater than 0."};
       }
 
+      // Get all the items of the character.
+      std::vector<data::Uid> characterItems;
+      characterRecord.Immutable([&characterItems](const data::Character& character)
+      {
+        characterItems = character.items();
+      });
+
       for (const data::Tid& itemTid : selectedPresetItems)
       {
+        bool foundItem = false;
+        server::Record<data::Item> itemRecord;
+        // Check if the item already exists in the character's inventory.
+        for (const data::Uid& characterItem : characterItems)
+        {
+          bool match = false;
+          itemRecord = GetServerInstance().GetDataDirector().GetItem(characterItem);
+          itemRecord.Immutable([&itemTid, &match](const data::Item& item)
+          {
+            match = item.tid() == itemTid;
+          });
+
+          if (match)
+          {
+            foundItem = true;
+            break;
+          }
+        }
+
+        if (foundItem)
+        {
+          itemRecord.Mutable([&itemCount](data::Item& item)
+          {
+            item.count() += itemCount;
+          });
+          continue; // Item already exists, just increase the count.
+        }
+
         // Create the item.
         auto createdItemUid = data::InvalidUid;
         const auto createdItemRecord = GetServerInstance().GetDataDirector().CreateItem();
@@ -1105,7 +1140,6 @@ std::vector<std::string> RanchDirector::HandleCommand(
         });
 
         // Add the stored item as a gift.
-
         characterRecord.Mutable([giftUid](data::Character& character)
         {
           character.gifts().emplace_back(giftUid);
