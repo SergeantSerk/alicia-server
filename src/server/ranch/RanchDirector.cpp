@@ -1041,7 +1041,7 @@ std::vector<std::string> RanchDirector::HandleCommand(
     if (command[1] == "preset")
     {
       if (command.size() < 3)
-        return {"Invalid command arguments. (//give preset <care>)"};
+        return {"Invalid command arguments. (//give preset <care> [<count>])"};
 
       std::map<std::string, std::vector<data::Uid>> presetCareItems =
       {
@@ -1068,15 +1068,21 @@ std::vector<std::string> RanchDirector::HandleCommand(
         selectedPresetItems.insert(selectedPresetItems.end(), it.begin(), it.end());
       }
 
+      uint32_t itemCount = command.size() < 4 ? 100 : std::atoi(command[3].c_str());
+      if (itemCount < 1)
+      {
+        return {"Invalid item count. Must be greater than 0."};
+      }
+
       for (const data::Uid& itemTid : selectedPresetItems)
       {
         // Create the item.
         auto createdItemUid = data::InvalidUid;
         const auto createdItemRecord = GetServerInstance().GetDataDirector().CreateItem();
-        createdItemRecord.Mutable([itemTid, &createdItemUid](data::Item& item)
+        createdItemRecord.Mutable([&itemTid, &itemCount, &createdItemUid](data::Item& item)
         {
           item.tid() = itemTid;
-          item.count() = 100;
+          item.count() = itemCount;
           item.expiresAt() = data::Clock::now() + std::chrono::days(10);
 
           createdItemUid = item.uid();
@@ -1085,11 +1091,11 @@ std::vector<std::string> RanchDirector::HandleCommand(
         // Create the stored item.
         auto giftUid = data::InvalidUid;
         const auto storedItem = GetServerInstance().GetDataDirector().CreateStorageItem();
-        storedItem.Mutable([this, &giftUid, createdItemUid, itemTid](data::StorageItem& storedItem)
+        storedItem.Mutable([this, &giftUid, &createdItemUid, &itemTid, &itemCount](data::StorageItem& storedItem)
         {
           storedItem.items().emplace_back(createdItemUid);
           storedItem.sender() = "System";
-          storedItem.message() = std::format("Item '{}'", itemTid);
+          storedItem.message() = std::format("{}x Item '{}'", itemCount, itemTid);
           storedItem.created() = data::Clock::now();
 
           giftUid = storedItem.uid();
