@@ -1038,6 +1038,67 @@ std::vector<std::string> RanchDirector::HandleCommand(
         return {"Not implemented"};
       }
     }
+
+    if (command[1] == "preset")
+    {
+      if (command.size() < 3)
+        return {"Invalid command arguments. (//give preset <care>)"};
+
+      std::vector<data::Uid> presetCareItems =
+      {
+        41001, 41002, 41003, 41004, 41005, 41006, 41007, // Feed
+        40002, 41008, 41009, // Clean
+        42002, 42001, // Play
+        44001, 44002, 44003, 44004, 44005, 44006 // Cure
+      };
+
+      std::vector<data::Uid> selectedPresetItems;
+      if (command[2] == "care")
+      {
+        selectedPresetItems = presetCareItems;
+      }
+      else
+      {
+        return {"Invalid preset type. See '//give preset'."};
+      }
+
+      for (const data::Uid& itemTid : selectedPresetItems)
+      {
+        // Create the item.
+        auto createdItemUid = data::InvalidUid;
+        const auto createdItemRecord = GetServerInstance().GetDataDirector().CreateItem();
+        createdItemRecord.Mutable([itemTid, &createdItemUid](data::Item& item)
+        {
+          item.tid() = itemTid;
+          item.count() = 100;
+          item.expiresAt() = data::Clock::now() + std::chrono::days(10);
+
+          createdItemUid = item.uid();
+        });
+
+        // Create the stored item.
+        auto giftUid = data::InvalidUid;
+        const auto storedItem = GetServerInstance().GetDataDirector().CreateStorageItem();
+        storedItem.Mutable([this, &giftUid, createdItemUid, itemTid](data::StorageItem& storedItem)
+        {
+          storedItem.items().emplace_back(createdItemUid);
+          storedItem.sender() = "System";
+          storedItem.message() = std::format("Item '{}'", itemTid);
+          storedItem.created() = data::Clock::now();
+
+          giftUid = storedItem.uid();
+        });
+
+        // Add the stored item as a gift.
+
+        characterRecord.Mutable([giftUid](data::Character& character)
+        {
+          character.gifts().emplace_back(giftUid);
+        });
+      }
+
+      return {"Preset given. Check your gifts in inventory!"};
+    }
   }
 
   return {"Invalid command"};
@@ -2026,7 +2087,8 @@ void RanchDirector::HandleUseCleanItem(
 
   // Clean tab is the second tab, hence the use of RanchCommandUseItemOK::ActionType::Action2
   response.type = protocol::AcCmdCRUseItemOK::ActionType::Wash;
-  response.playSuccessLevel = protocol::AcCmdCRUseItemOK::PlaySuccessLevel::CriticalGood; // 2
+  response.playSuccessLevelTest = 0xb0bd0b02; // 2
+  response.paddingTest = 0xfeedfacebeefd1ce;
 
   // TODO: Update the horse's stats based on the clean item used.
 }
