@@ -1043,7 +1043,8 @@ std::vector<std::string> RanchDirector::HandleCommand(
       if (command.size() < 3)
         return {"Invalid command arguments. (//give preset <care> [<count>])"};
 
-      std::map<std::string, std::vector<data::Uid>> presetCareItems =
+      // Preset care items.
+      std::map<std::string, std::vector<data::Tid>> presetCareItems =
       {
         {"feed", {41001, 41002, 41003, 41004, 41005, 41006, 41007}}, // Feed
         {"clean", {40002, 41008, 41009}}, // Clean
@@ -1061,20 +1062,22 @@ std::vector<std::string> RanchDirector::HandleCommand(
         return {"Invalid preset type. See '//give preset'."};
       }
 
-      std::vector<data::Uid> selectedPresetItems{};
+      // List of selected individual items.
+      std::vector<data::Tid> selectedPresetItems{};
       for (const auto& careType : itemTypes)
       {
         const auto it = presetCareItems[careType];
         selectedPresetItems.insert(selectedPresetItems.end(), it.begin(), it.end());
       }
 
+      // Check if item count is valid. Cannot give less than 1 item.
       uint32_t itemCount = command.size() < 4 ? 100 : std::atoi(command[3].c_str());
       if (itemCount < 1)
       {
         return {"Invalid item count. Must be greater than 0."};
       }
 
-      for (const data::Uid& itemTid : selectedPresetItems)
+      for (const data::Tid& itemTid : selectedPresetItems)
       {
         // Create the item.
         auto createdItemUid = data::InvalidUid;
