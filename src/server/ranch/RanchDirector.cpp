@@ -994,38 +994,16 @@ std::vector<std::string> RanchDirector::HandleCommand(
         return {"Invalid command arguments. (//give item <count> <tid>)"};
 
       uint32_t itemCount = std::atoi(command[2].c_str());
+      if (itemCount < 1)
+        return {"Invalid item count. Must be greater than 0."};
+      
       data::Uid createdItemTid = std::atoi(command[3].c_str());
 
-      // Create the item.
-      auto createdItemUid = data::InvalidUid;
-      const auto createdItemRecord = GetServerInstance().GetDataDirector().CreateItem();
-      createdItemRecord.Mutable([createdItemTid, itemCount, &createdItemUid](data::Item& item)
-      {
-        item.tid() = createdItemTid;
-        item.count() = itemCount;
-        item.expiresAt() = data::Clock::now() + std::chrono::days(10);
-
-        createdItemUid = item.uid();
-      });
-
-      // Create the stored item.
-      auto giftUid = data::InvalidUid;
-      const auto storedItem = GetServerInstance().GetDataDirector().CreateStorageItem();
-      storedItem.Mutable([this, &giftUid, createdItemUid, createdItemTid](data::StorageItem& storedItem)
-      {
-        storedItem.items().emplace_back(createdItemUid);
-        storedItem.sender() = "System";
-        storedItem.message() = std::format("Item '{}'", createdItemTid);
-        storedItem.created() = data::Clock::now();
-
-        giftUid = storedItem.uid();
-      });
-
-      // Add the stored item as a gift.
-      characterRecord.Mutable([giftUid](data::Character& character)
-      {
-        character.gifts().emplace_back(giftUid);
-      });
+      // Use helper to add item as a gift (prevents duplicate TID items in inventory).
+      GiveItemToCharacter(
+        clientContext.characterUid,
+        createdItemTid,
+        itemCount);
 
       return {"Item given. Check your gifts in inventory!"};
     }
@@ -1086,64 +1064,10 @@ std::vector<std::string> RanchDirector::HandleCommand(
 
       for (const data::Tid& itemTid : selectedPresetItems)
       {
-        bool foundItem = false;
-        server::Record<data::Item> itemRecord;
-        // Check if the item already exists in the character's inventory.
-        for (const data::Uid& characterItem : characterItems)
-        {
-          bool match = false;
-          itemRecord = GetServerInstance().GetDataDirector().GetItem(characterItem);
-          itemRecord.Immutable([&itemTid, &match](const data::Item& item)
-          {
-            match = item.tid() == itemTid;
-          });
-
-          if (match)
-          {
-            foundItem = true;
-            break;
-          }
-        }
-
-        if (foundItem)
-        {
-          itemRecord.Mutable([&itemCount](data::Item& item)
-          {
-            item.count() += itemCount;
-          });
-          continue; // Item already exists, just increase the count.
-        }
-
-        // Create the item.
-        auto createdItemUid = data::InvalidUid;
-        const auto createdItemRecord = GetServerInstance().GetDataDirector().CreateItem();
-        createdItemRecord.Mutable([&itemTid, &itemCount, &createdItemUid](data::Item& item)
-        {
-          item.tid() = itemTid;
-          item.count() = itemCount;
-          item.expiresAt() = data::Clock::now() + std::chrono::days(10);
-
-          createdItemUid = item.uid();
-        });
-
-        // Create the stored item.
-        auto giftUid = data::InvalidUid;
-        const auto storedItem = GetServerInstance().GetDataDirector().CreateStorageItem();
-        storedItem.Mutable([this, &giftUid, &createdItemUid, &itemTid, &itemCount](data::StorageItem& storedItem)
-        {
-          storedItem.items().emplace_back(createdItemUid);
-          storedItem.sender() = "System";
-          storedItem.message() = std::format("{}x Item '{}'", itemCount, itemTid);
-          storedItem.created() = data::Clock::now();
-
-          giftUid = storedItem.uid();
-        });
-
-        // Add the stored item as a gift.
-        characterRecord.Mutable([giftUid](data::Character& character)
-        {
-          character.gifts().emplace_back(giftUid);
-        });
+        GiveItemToCharacter(
+          clientContext.characterUid,
+          itemTid,
+          itemCount);
       }
 
       return {"Preset given. Check your gifts in inventory or restart game to update inventory values!"};
@@ -1709,6 +1633,79 @@ void RanchDirector::HandleGetItemFromStorage(
     {
       return response;
     });
+}
+
+void RanchDirector::GiveItemToCharacter(data::Uid characterUid, data::Tid itemTid, uint32_t itemCount)
+{
+  // Locate character record
+  const auto characterRecord = GetServerInstance().GetDataDirector().GetCharacter(characterUid);
+  if (not characterRecord)
+    throw std::runtime_error(std::format("Character [{}] not available", characterUid));
+
+  bool incrementedExisting = false;
+  std::vector<data::Uid> characterItems;
+  characterRecord.Immutable([&characterItems](const data::Character& character)
+  {
+    characterItems = character.items();
+  });
+
+  // Check existing items for the given TID. If found, increment the count.
+  for (const data::Uid& characterItemUid : characterItems)
+  {
+    const auto itemRecord = GetServerInstance().GetDataDirector().GetItem(characterItemUid);
+    if (not itemRecord)
+      continue;
+
+    bool match = false;
+    itemRecord.Immutable([&match, itemTid](const data::Item& item)
+    {
+      match = item.tid() == itemTid;
+    });
+
+    if (match)
+    {
+      itemRecord.Mutable([itemCount](data::Item& item)
+      {
+        item.count() += itemCount;
+      });
+      incrementedExisting = true;
+      break;
+    }
+  }
+
+  if (incrementedExisting)
+    return;
+
+  // Create the item.
+  auto createdItemUid = data::InvalidUid;
+  const auto createdItemRecord = GetServerInstance().GetDataDirector().CreateItem();
+  createdItemRecord.Mutable([&itemTid, &itemCount, &createdItemUid](data::Item& item)
+  {
+    item.tid() = itemTid;
+    item.count() = itemCount;
+    item.expiresAt() = data::Clock::now() + std::chrono::days(10);
+
+    createdItemUid = item.uid();
+  });
+
+  // Create the stored item.
+  auto giftUid = data::InvalidUid;
+  const auto storedItem = GetServerInstance().GetDataDirector().CreateStorageItem();
+  storedItem.Mutable([this, &giftUid, &createdItemUid, &itemTid, &itemCount](data::StorageItem& storedItem)
+  {
+    storedItem.items().emplace_back(createdItemUid);
+    storedItem.sender() = "System";
+    storedItem.message() = std::format("{}x Item '{}'", itemCount, itemTid);
+    storedItem.created() = data::Clock::now();
+
+    giftUid = storedItem.uid();
+  });
+
+  // Add the stored item as a gift.
+  characterRecord.Mutable([giftUid](data::Character& character)
+  {
+    character.gifts().emplace_back(giftUid);
+  });
 }
 
 void RanchDirector::HandleRequestNpcDressList(

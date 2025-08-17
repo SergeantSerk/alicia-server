@@ -262,6 +262,11 @@ private:
   void HandleMountFamilyTree(ClientId clientId,
     const protocol::RanchCommandMountFamilyTree& command);
 
+  //! Give an item to a character as a stored gift or
+  //! increment its count instead of creating a duplicate item record
+  //! If the character already owns an item with the same TID
+  void GiveItemToCharacter(data::Uid characterUid, data::Tid itemTid, uint32_t itemCount);
+
   //!
   ServerInstance& _serverInstance;
   //!
