@@ -1022,7 +1022,6 @@ std::vector<std::string> RanchDirector::HandleCommand(
       });
 
       // Add the stored item as a gift.
-
       characterRecord.Mutable([giftUid](data::Character& character)
       {
         character.gifts().emplace_back(giftUid);
@@ -1044,22 +1043,29 @@ std::vector<std::string> RanchDirector::HandleCommand(
       if (command.size() < 3)
         return {"Invalid command arguments. (//give preset <care>)"};
 
-      std::vector<data::Uid> presetCareItems =
+      std::map<std::string, std::vector<data::Uid>> presetCareItems =
       {
-        41001, 41002, 41003, 41004, 41005, 41006, 41007, // Feed
-        40002, 41008, 41009, // Clean
-        42002, 42001, // Play
-        44001, 44002, 44003, 44004, 44005, 44006 // Cure
+        {"feed", {41001, 41002, 41003, 41004, 41005, 41006, 41007}}, // Feed
+        {"clean", {40002, 41008, 41009}}, // Clean
+        {"play", {42002, 42001}}, // Play
+        {"cure", {44001, 44002, 44003, 44004, 44005, 44006}} // Cure
       };
 
-      std::vector<data::Uid> selectedPresetItems;
+      std::vector<std::string> itemTypes{};
       if (command[2] == "care")
       {
-        selectedPresetItems = presetCareItems;
+        itemTypes = {"feed", "clean", "play", "cure"};
       }
       else
       {
         return {"Invalid preset type. See '//give preset'."};
+      }
+
+      std::vector<data::Uid> selectedPresetItems{};
+      for (const auto& careType : itemTypes)
+      {
+        const auto it = presetCareItems[careType];
+        selectedPresetItems.insert(selectedPresetItems.end(), it.begin(), it.end());
       }
 
       for (const data::Uid& itemTid : selectedPresetItems)
@@ -2087,8 +2093,7 @@ void RanchDirector::HandleUseCleanItem(
 
   // Clean tab is the second tab, hence the use of RanchCommandUseItemOK::ActionType::Action2
   response.type = protocol::AcCmdCRUseItemOK::ActionType::Wash;
-  response.playSuccessLevelTest = 0xb0bd0b02; // 2
-  response.paddingTest = 0xfeedfacebeefd1ce;
+  response.playSuccessLevel = protocol::AcCmdCRUseItemOK::PlaySuccessLevel::CriticalGood; // 2
 
   // TODO: Update the horse's stats based on the clean item used.
 }
