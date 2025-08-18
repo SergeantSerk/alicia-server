@@ -1000,7 +1000,7 @@ std::vector<std::string> RanchDirector::HandleCommand(
       data::Uid createdItemTid = std::atoi(command[3].c_str());
 
       // Use helper to add item as a gift (prevents duplicate TID items in inventory).
-      GiveItemToCharacter(
+      GiveItemToCharacterAsGift(
         clientContext.characterUid,
         createdItemTid,
         itemCount);
@@ -1064,7 +1064,7 @@ std::vector<std::string> RanchDirector::HandleCommand(
 
       for (const data::Tid& itemTid : selectedPresetItems)
       {
-        GiveItemToCharacter(
+        GiveItemToCharacterAsGift(
           clientContext.characterUid,
           itemTid,
           itemCount);
@@ -1696,7 +1696,7 @@ void RanchDirector::HandleGetItemFromStorage(
     });
 }
 
-void RanchDirector::GiveItemToCharacter(data::Uid characterUid, data::Tid itemTid, uint32_t itemCount)
+void RanchDirector::GiveItemToCharacterAsGift(data::Uid characterUid, data::Tid itemTid, uint32_t itemCount)
 {
   // Locate character record
   const auto characterRecord = GetServerInstance().GetDataDirector().GetCharacter(characterUid);
