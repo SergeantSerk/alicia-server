@@ -1642,40 +1642,6 @@ void RanchDirector::GiveItemToCharacter(data::Uid characterUid, data::Tid itemTi
   if (not characterRecord)
     throw std::runtime_error(std::format("Character [{}] not available", characterUid));
 
-  bool incrementedExisting = false;
-  std::vector<data::Uid> characterItems;
-  characterRecord.Immutable([&characterItems](const data::Character& character)
-  {
-    characterItems = character.items();
-  });
-
-  // Check existing items for the given TID. If found, increment the count.
-  for (const data::Uid& characterItemUid : characterItems)
-  {
-    const auto itemRecord = GetServerInstance().GetDataDirector().GetItem(characterItemUid);
-    if (not itemRecord)
-      continue;
-
-    bool match = false;
-    itemRecord.Immutable([&match, itemTid](const data::Item& item)
-    {
-      match = item.tid() == itemTid;
-    });
-
-    if (match)
-    {
-      itemRecord.Mutable([itemCount](data::Item& item)
-      {
-        item.count() += itemCount;
-      });
-      incrementedExisting = true;
-      break;
-    }
-  }
-
-  if (incrementedExisting)
-    return;
-
   // Create the item.
   auto createdItemUid = data::InvalidUid;
   const auto createdItemRecord = GetServerInstance().GetDataDirector().CreateItem();
