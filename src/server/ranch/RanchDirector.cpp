@@ -1070,7 +1070,7 @@ std::vector<std::string> RanchDirector::HandleCommand(
           itemCount);
       }
 
-      return {"Preset given. Check your gifts in inventory or restart game to update inventory values!"};
+      return {"Preset given. Check your gifts in inventory!"};
     }
   }
 
