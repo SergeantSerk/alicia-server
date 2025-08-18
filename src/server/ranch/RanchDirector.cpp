@@ -1620,11 +1620,72 @@ void RanchDirector::HandleGetItemFromStorage(
         protocol::BuildProtocolItems(response.items, *itemRecords);
       });
 
-      // Add the items to the character's inventory.
-      character.items().insert(
-        character.items().end(),
-        items.begin(),
-        items.end());
+      // Loop through all the items in the stored item
+      for (const data::Uid& incomingItemUid : items)
+      {
+        const auto incomingItemRecord = GetServerInstance().GetDataDirector().GetItem(incomingItemUid);
+
+        auto incomingItemTid = data::InvalidTid;
+        auto incomingItemCount = 0;
+        // Fetch the incoming item's TID from the data director to check if character already has it.
+        incomingItemRecord.Immutable([&incomingItemTid, &incomingItemCount](const data::Item& item)
+        {
+          incomingItemTid = item.tid();
+          incomingItemCount = item.count();
+        });
+
+        // Defensive checks for the incoming item TID and count.
+        if (incomingItemTid == data::InvalidTid)
+        {
+          spdlog::error(
+            "Invalid item TID [{}] for item UID [{}] in storage item.",
+            incomingItemTid, incomingItemUid);
+          // Skip this item if the TID is invalid.
+          continue;
+        }
+        else if (incomingItemCount < 1)
+        {
+          spdlog::error(
+            "Invalid item count [{}] for item UID [{}] in storage item.",
+            incomingItemCount, incomingItemUid);
+          continue;
+        }
+        
+        bool foundExistingItem = false;
+        // Loop through the character's items to check if the item already exists.
+        for (const data::Uid& characterItemUid : character.items())
+        {
+          // Get current character item record.
+          const auto characterItemRecord = GetServerInstance().GetDataDirector().GetItem(characterItemUid);
+          auto characterItemTid = data::InvalidTid;
+          // Fetch the character item's TID.
+          characterItemRecord.Immutable([&characterItemTid](const data::Item& item)
+          {
+            characterItemTid = item.tid();
+          });
+
+          // If the TIDs match, it means the item already exists in the character's inventory.
+          if (incomingItemTid == characterItemTid)
+          {
+            // Increase the count of the existing item.
+            characterItemRecord.Mutable([&incomingItemCount](data::Item& item)
+            {
+              item.count() += incomingItemCount;
+            });
+
+            // Item found and incremented, no need to loop through the rest of the character items.
+            foundExistingItem = true;
+            break;
+          }
+        }
+
+        // If the character does not have item, it means the item is new and should be added.
+        if (not foundExistingItem)
+        {
+          // Add the items to the character's inventory.
+          character.items().emplace_back(incomingItemUid);
+        }
+      }
     });
 
   _commandServer.QueueCommand<decltype(response)>(
