@@ -1599,7 +1599,7 @@ void RanchDirector::HandleGetItemFromStorage(
 
   protocol::AcCmdCRGetItemFromStorageOK response{
     .storedItemUid = command.storedItemUid,
-    .member0 = 0};
+    .updatedCarrotCount = 0};
 
   // Get the items assigned to the stored item and fill the protocol command.
   characterRecord.Mutable([this, &response](

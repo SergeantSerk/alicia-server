@@ -1584,7 +1584,9 @@ struct AcCmdCRGetItemFromStorageOK
 {
   uint32_t storedItemUid{};
   std::vector<Item> items{};
-  uint32_t member0{};
+  // Updated carrot count as displayed on the game client.
+  // Somehow can be negative.
+  uint32_t updatedCarrotCount{};
 
   static Command GetCommand()
   {
