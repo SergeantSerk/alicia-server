@@ -30,9 +30,22 @@ target_sources(data_test_director PRIVATE
 target_link_libraries(data_test_director
         PRIVATE project-properties alicia-libserver)
 
+add_executable(data_test_director_complex)
+target_sources(data_test_director_complex PRIVATE
+        src/data/TestDataDirectorComplex.cpp)
+target_link_libraries(data_test_director_complex
+        PRIVATE project-properties alicia-libserver)
+
+add_executable(data_test_director_comprehensive)
+target_sources(data_test_director_comprehensive PRIVATE
+        src/data/TestDataDirectorComprehensive.cpp)
+target_link_libraries(data_test_director_comprehensive
+        PRIVATE project-properties alicia-libserver)
+
 add_test(NAME ProtocolTestMagic COMMAND protocol_test_magic)
 add_test(NAME UtilTestStream COMMAND util_test_stream)
 add_test(NAME UtilTestScheduler COMMAND util_test_scheduler)
 add_test(NAME UtilTestLocale COMMAND util_test_locale)
 add_test(NAME DataTestDirector COMMAND data_test_director)
-
+add_test(NAME DataTestDirectorComplex COMMAND data_test_director_complex)
+add_test(NAME DataTestDirectorComprehensive COMMAND data_test_director_comprehensive)
