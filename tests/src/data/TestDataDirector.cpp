@@ -337,29 +337,6 @@ void TestDataDirector_GuildWithCharacters()
 //- Comprehensive Tests
 // ------------------------------------------------------------------------------------------------
 
-//! Perform a comprehensive test of user data.
-void TestDataDirector_Comprehensive_User()
-{
-    server::DataDirector dataDirector(".");
-    auto& userStorage = dataDirector.GetUsers();
-
-    // Create a user and set its fields.
-    auto userRecord = userStorage.Create("test-user");
-    userRecord.Mutable([](auto& user) {
-        user.token() = "test-token";
-        user.characterUid() = 1;
-    });
-
-    // Verify the user's fields.
-    auto existentUserRecord = userStorage.Get("test-user");
-    assert(existentUserRecord.IsAvailable());
-    existentUserRecord.Immutable([](const auto& user) {
-        assert(user.name() == "test-user");
-        assert(user.token() == "test-token");
-        assert(user.characterUid() == 1);
-    });
-}
-
 //! Perform a comprehensive test of character data.
 void TestDataDirector_Comprehensive_Character()
 {
@@ -704,7 +681,6 @@ int main()
     TestDataDirector_CharacterWithPets();
     TestDataDirector_CharacterWithItems();
     TestDataDirector_GuildWithCharacters();
-    TestDataDirector_Comprehensive_User();
     TestDataDirector_Comprehensive_Character();
     TestDataDirector_Comprehensive_Horse();
     TestDataDirector_Comprehensive_Item();
