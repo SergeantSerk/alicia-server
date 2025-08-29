@@ -3194,10 +3194,10 @@ struct RanchCommandMountFamilyTreeCancel
 struct AcCmdCRMountInjuryHealOK
 {
   // TODO: reverse
-  uint32_t unk0;
+  uint32_t horseUid;
   uint32_t unk1;
-  uint32_t unk2;
-  uint32_t unk3; // not needed?
+  uint8_t unk2;
+  uint32_t updatedCarrots;
 
   static Command GetCommand()
   {

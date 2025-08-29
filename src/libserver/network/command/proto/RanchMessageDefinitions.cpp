@@ -2023,10 +2023,10 @@ void AcCmdCRMountInjuryHealOK::Write(
   const AcCmdCRMountInjuryHealOK& command,
   SinkStream& stream)
 {
-  stream.Write(command.unk0)
+  stream.Write(command.horseUid)
     .Write(command.unk1)
     .Write(command.unk2)
-    .Write(command.unk3);
+    .Write(command.updatedCarrots);
 }
 
 void AcCmdCRMountInjuryHealOK::Read(

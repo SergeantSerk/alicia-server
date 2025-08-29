@@ -1902,8 +1902,7 @@ void RanchDirector::HandleUseCureItem(
   // TODO: Update the horse's stats based on the cure item used.
 
   protocol::AcCmdCRMountInjuryHealOK healResponse{
-    .unk0 = command.horseUid
-  };
+    .horseUid = command.horseUid};
 
   _commandServer.QueueCommand<decltype(healResponse)>(
     clientId,
