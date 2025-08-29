@@ -236,6 +236,7 @@ private:
     protocol::AcCmdCRUseItemOK& response);
 
   void HandleUseCureItem(
+    const ClientId clientId,
     const protocol::AcCmdCRUseItem& command,
     protocol::AcCmdCRUseItemOK& response);
 

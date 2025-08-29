@@ -1890,6 +1890,7 @@ void RanchDirector::HandleUsePlayItem(
 }
 
 void RanchDirector::HandleUseCureItem(
+  ClientId clientId,
   const protocol::AcCmdCRUseItem& command,
   protocol::AcCmdCRUseItemOK& response)
 {
@@ -1899,6 +1900,17 @@ void RanchDirector::HandleUseCureItem(
   response.experiencePoints = 0;
 
   // TODO: Update the horse's stats based on the cure item used.
+
+  protocol::AcCmdCRMountInjuryHealOK healResponse{
+    .unk0 = command.horseUid
+  };
+
+  _commandServer.QueueCommand<decltype(healResponse)>(
+    clientId,
+    [healResponse]()
+    {
+      return healResponse;
+    });
 }
 
 void RanchDirector::HandleUseItem(
@@ -1961,18 +1973,7 @@ void RanchDirector::HandleUseItem(
   else if (itemTid > 44000 && itemTid < 44007)
   {
     // Cure items
-    HandleUseCureItem(command, response);
-
-    protocol::AcCmdCRMountInjuryHealOK healResponse{
-      command.horseUid
-    };
-
-    _commandServer.QueueCommand<decltype(healResponse)>(
-      clientId,
-      [healResponse]()
-      {
-        return healResponse;
-      });
+    HandleUseCureItem(clientId, command, response);
   }
   else
   {
