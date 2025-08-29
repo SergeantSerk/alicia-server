@@ -3039,7 +3039,7 @@ struct AcCmdCRUseItemOK
     Cure
   };
 
-  enum class PlaySuccessLevel : uint32_t
+  enum class PlaySuccessLevel : uint8_t
   {
     Bad = 0,
     Good = 1,
@@ -3188,6 +3188,34 @@ struct RanchCommandMountFamilyTreeCancel
   //! @param stream Source stream.
   static void Read(
     RanchCommandMountFamilyTreeCancel& command,
+    SourceStream& stream);
+};
+
+struct AcCmdCRMountInjuryHealOK
+{
+  // TODO: reverse
+  uint32_t unk0;
+  uint32_t unk1;
+  uint32_t unk2;
+  uint32_t unk3; // not needed?
+
+  static Command GetCommand()
+  {
+    return Command::AcCmdCRMountInjuryHealOK;
+  }
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const AcCmdCRMountInjuryHealOK& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    AcCmdCRMountInjuryHealOK& command,
     SourceStream& stream);
 };
 

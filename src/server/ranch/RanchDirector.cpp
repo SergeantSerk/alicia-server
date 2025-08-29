@@ -1962,6 +1962,17 @@ void RanchDirector::HandleUseItem(
   {
     // Cure items
     HandleUseCureItem(command, response);
+
+    protocol::AcCmdCRMountInjuryHealOK healResponse{
+      command.horseUid
+    };
+
+    _commandServer.QueueCommand<decltype(healResponse)>(
+      clientId,
+      [healResponse]()
+      {
+        return healResponse;
+      });
   }
   else
   {

@@ -2019,5 +2019,22 @@ void AcCmdCRWithdrawGuildMemberCancel::Read(
   throw std::runtime_error("Not implemented");
 }
 
+void AcCmdCRMountInjuryHealOK::Write(
+  const AcCmdCRMountInjuryHealOK& command,
+  SinkStream& stream)
+{
+  stream.Write(command.unk0)
+    .Write(command.unk1)
+    .Write(command.unk2)
+    .Write(command.unk3);
+}
+
+void AcCmdCRMountInjuryHealOK::Read(
+  AcCmdCRMountInjuryHealOK& command,
+  SourceStream& stream)
+{
+  throw std::runtime_error("Not implemented");
+}
+
 } // namespace server::protocol
 
