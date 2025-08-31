@@ -639,7 +639,7 @@ struct AcCmdCRRegisterStallion
 
 struct AcCmdCRRegisterStallionOK
 {
-  uint32_t horseUid{};
+  uint32_t updatedCarrots{};
 
   static Command GetCommand()
   {

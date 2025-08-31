@@ -953,8 +953,17 @@ void RanchDirector::HandleRegisterStallion(
 {
   g_stallions.emplace_back(command.horseUid);
 
-  protocol::AcCmdCRRegisterStallionOK response{
-    .horseUid = command.horseUid};
+  protocol::AcCmdCRRegisterStallionOK response{};
+
+  const auto& clientContext = GetClientContext(clientId);
+  auto characterRecord = GetServerInstance().GetDataDirector().GetCharacter(
+    clientContext.characterUid);
+  
+  characterRecord.Mutable([&response](data::Character& character)
+  {
+    // TODO: calculate based on grade
+    response.updatedCarrots = character.carrots();
+  });
 
   _commandServer.QueueCommand<decltype(response)>(
     clientId,
@@ -1004,8 +1013,8 @@ void RanchDirector::HandleTryBreeding(
   const protocol::AcCmdCRTryBreeding& command)
 {
   protocol::RanchCommandTryBreedingOK response{
-    .uid = command.mareUid,
-    .tid = command.stallionUid,
+    .uid = command.mareUid, // new horse (foal) uid
+    .tid = command.stallionUid, // tid = uid?
     .val = 0,
     .count = 0,
     .unk0 = 0,
@@ -2355,6 +2364,10 @@ void RanchDirector::HandleUseItem(
   {
     // Cure items
     HandleUseCureItem(command, response);
+  }
+  else if (itemTid == 43001)
+  {
+    response.type = protocol::AcCmdCRUseItemOK::ActionType::Generic;
   }
   else
   {

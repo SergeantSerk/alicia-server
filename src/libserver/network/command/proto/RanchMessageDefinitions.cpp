@@ -615,7 +615,7 @@ void AcCmdCRRegisterStallionOK::Write(
   const AcCmdCRRegisterStallionOK& command,
   SinkStream& stream)
 {
-  stream.Write(command.horseUid);
+  stream.Write(command.updatedCarrots);
 }
 
 void AcCmdCRRegisterStallionOK::Read(
