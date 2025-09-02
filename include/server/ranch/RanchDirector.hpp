@@ -280,6 +280,10 @@ private:
     ClientId clientId,
     const protocol::AcCmdCRCheckStorageItem command);
 
+  void HandleUpdateCharacterNickname(
+    ClientId clientId,
+    const protocol::AcCmdCRChangeNickname command);
+
   //!
   ServerInstance& _serverInstance;
   //!

@@ -3400,6 +3400,90 @@ struct AcCmdCRCheckStorageItem
     SourceStream& stream);
 };
 
+struct AcCmdCRChangeNickname
+{
+  //! UID of the character rename item
+  uint32_t itemUid;
+  std::string nickname;
+
+  static Command GetCommand()
+  {
+    return Command::AcCmdCRChangeNickname;
+  }
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const AcCmdCRChangeNickname& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    AcCmdCRChangeNickname& command,
+    SourceStream& stream);
+};
+
+struct AcCmdCRChangeNicknameCancel
+{
+  // TODO: discover more error status codes
+  enum class Status {
+    None = 0,
+    UnknownError = 1
+  };
+  
+  uint32_t unk0; // still item uid?
+  Status status;
+
+  static Command GetCommand()
+  {
+    return Command::AcCmdCRChangeNicknameCancel;
+  }
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const AcCmdCRChangeNicknameCancel& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    AcCmdCRChangeNicknameCancel& command,
+    SourceStream& stream);
+};
+
+struct AcCmdCRChangeNicknameOK
+{
+  uint32_t itemUid;
+  //! Possibly item count, signature matches other item count modifying commands
+  uint16_t unk1;
+  std::string nickname;
+
+  static Command GetCommand()
+  {
+    return Command::AcCmdCRChangeNicknameOK;
+  }
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const AcCmdCRChangeNicknameOK& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    AcCmdCRChangeNicknameOK& command,
+    SourceStream& stream);
+};
+
 } // namespace server::protocol
 
 #endif // RANCH_MESSAGE_DEFINES_HPP

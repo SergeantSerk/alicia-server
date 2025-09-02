@@ -2146,5 +2146,51 @@ void AcCmdCRCheckStorageItem::Write(
   throw std::runtime_error("Not implemented");
 }
 
+void AcCmdCRChangeNickname::Read(
+  AcCmdCRChangeNickname& command,
+  SourceStream& stream)
+{
+  stream.Read(command.itemUid)
+    .Read(command.nickname);
+}
+
+void AcCmdCRChangeNickname::Write(
+  const AcCmdCRChangeNickname& command,
+  SinkStream& stream)
+{
+  throw std::runtime_error("Not implemented");
+}
+
+void AcCmdCRChangeNicknameCancel::Read(
+  AcCmdCRChangeNicknameCancel& command,
+  SourceStream& stream)
+{
+  throw std::runtime_error("Not implemented");
+}
+
+void AcCmdCRChangeNicknameCancel::Write(
+  const AcCmdCRChangeNicknameCancel& command,
+  SinkStream& stream)
+{
+  stream.Write(command.unk0)
+    .Write(command.status);
+}
+
+void AcCmdCRChangeNicknameOK::Read(
+  AcCmdCRChangeNicknameOK& command,
+  SourceStream& stream)
+{
+  throw std::runtime_error("Not implemented");
+}
+
+void AcCmdCRChangeNicknameOK::Write(
+  const AcCmdCRChangeNicknameOK& command,
+  SinkStream& stream)
+{
+  stream.Write(command.itemUid)
+    .Write(command.unk1)
+    .Write(command.nickname);
+}
+
 } // namespace server::protocol
 

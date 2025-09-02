@@ -308,7 +308,13 @@ RanchDirector::RanchDirector(ServerInstance& serverInstance)
     [this](ClientId clientId, const auto& command)
     {
       HandleCheckStorageItem(clientId, command);
-    });  
+    });
+
+  _commandServer.RegisterCommandHandler<protocol::AcCmdCRChangeNickname>(
+    [this](ClientId clientId, const auto& command)
+    {
+      HandleUpdateCharacterNickname(clientId, command);
+    });
 }
 
 void RanchDirector::Initialize()
@@ -2711,6 +2717,86 @@ void RanchDirector::HandleCheckStorageItem(
   {
     storedItem.checked() = true;
   });
+}
+
+void RanchDirector::HandleUpdateCharacterNickname(
+  ClientId clientId,
+  const protocol::AcCmdCRChangeNickname command)
+{
+  const auto& characterUid = GetClientContext(clientId).characterUid;
+  const auto characterRecord = GetServerInstance().GetDataDirector().GetCharacter(characterUid);
+  
+  bool nicknameEmpty = false;
+  if (command.nickname.empty())
+  {
+    // Nickname is empty
+    nicknameEmpty = true;
+    spdlog::warn("Character {} tried to update character nickname to empty string", characterUid);
+  }
+
+  bool characterHasItem = true;
+  // Check if the character owns a character rename item
+  characterRecord.Immutable([&characterHasItem, itemUid = command.itemUid](const data::Character& character)
+  {
+    characterHasItem = std::ranges::contains(character.items(), itemUid);
+    // If character does not have character rename item
+    if (not characterHasItem)
+      spdlog::warn("Character {} tried to change nickname but does not have player rename item {}",
+        character.name(), itemUid);
+  });
+  
+  if (nicknameEmpty || not characterHasItem)
+  {
+    // Cancel nickname change with error status
+    protocol::AcCmdCRChangeNicknameCancel cancelResponse{
+      .unk0 = command.itemUid, // TODO: not sure if this is actually item UID, had no effect
+      .status = protocol::AcCmdCRChangeNicknameCancel::Status::UnknownError
+    };
+
+    _commandServer.QueueCommand<decltype(cancelResponse)>(
+      clientId,
+      [cancelResponse]()
+      {
+        return cancelResponse;
+      });
+    return;
+  }
+
+  // TODO: do nickname moderation
+
+  protocol::AcCmdCRChangeNicknameOK response{
+    .itemUid = command.itemUid,
+    .nickname = command.nickname
+  };
+
+  characterRecord.Mutable([this, &response, nickname = command.nickname](data::Character& character)
+  {
+    // Set nickname to new one
+    character.name() = nickname;
+    GetServerInstance().GetDataDirector().GetItem(response.itemUid).Mutable([&response, &character](data::Item& item)
+    {
+      // Decrement character rename item count
+      response.unk1 = item.count() -= 1;
+      // If item is depleted
+      if (item.count() < 1)
+      {
+        // Erase item from character inventory
+        character.items().erase(
+          std::ranges::find(
+            character.items(),
+            item.uid()
+          ));
+      }
+    });
+  });
+
+
+  _commandServer.QueueCommand<decltype(response)>(
+    clientId,
+    [response]()
+    {
+      return response;
+    });
 }
 
 } // namespace server
