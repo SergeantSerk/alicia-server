@@ -2188,7 +2188,7 @@ void AcCmdCRStudyCareSkillOK::Read(
   AcCmdCRStudyCareSkillOK& command,
   SourceStream& stream)
 {
-  stream.Read(command.skillId);
+  throw std::runtime_error("Not implemented");
 }
 
 } // namespace server::protocol
