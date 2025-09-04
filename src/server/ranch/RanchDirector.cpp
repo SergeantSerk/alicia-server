@@ -2700,6 +2700,8 @@ void RanchDirector::HandleStudyCareSkill(
   protocol::AcCmdCRStudyCareSkillOK response{
     .skillId = command.skillId};
 
+  // TODO: record which care skill was studied and action it
+
   _commandServer.QueueCommand<decltype(response)>(
     clientId,
     [response]()
