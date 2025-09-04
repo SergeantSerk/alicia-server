@@ -277,6 +277,10 @@ private:
     ClientId clientId,
     const protocol::AcCmdCRRecoverMount command);
 
+  void HandleStudyCareSkill(
+    ClientId clientId,
+    const protocol::AcCmdCRStudyCareSkill command);
+  
   //!
   ServerInstance& _serverInstance;
   //!

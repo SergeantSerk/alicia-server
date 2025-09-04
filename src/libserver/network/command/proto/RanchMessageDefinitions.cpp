@@ -2149,5 +2149,47 @@ void AcCmdCRMountInjuryHealOK::Read(
   throw std::runtime_error("Not implemented");
 }
 
+void AcCmdCRStudyCareSkill::Write(
+  const AcCmdCRStudyCareSkill& command,
+  SinkStream& stream)
+{
+  throw std::runtime_error("Not implemented");
+}
+
+void AcCmdCRStudyCareSkill::Read(
+  AcCmdCRStudyCareSkill& command,
+  SourceStream& stream)
+{
+  stream.Read(command.skillId);
+}
+
+void AcCmdCRStudyCareSkillCancel::Write(
+  const AcCmdCRStudyCareSkillCancel& command,
+  SinkStream& stream)
+{
+
+}
+
+void AcCmdCRStudyCareSkillCancel::Read(
+  AcCmdCRStudyCareSkillCancel& command,
+  SourceStream& stream)
+{
+  throw std::runtime_error("Not implemented");
+}
+
+void AcCmdCRStudyCareSkillOK::Write(
+  const AcCmdCRStudyCareSkillOK& command,
+  SinkStream& stream)
+{
+  stream.Write(command.skillId);
+}
+
+void AcCmdCRStudyCareSkillOK::Read(
+  AcCmdCRStudyCareSkillOK& command,
+  SourceStream& stream)
+{
+  stream.Read(command.skillId);
+}
+
 } // namespace server::protocol
 

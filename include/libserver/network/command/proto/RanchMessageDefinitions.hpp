@@ -3404,6 +3404,76 @@ struct AcCmdCRMountInjuryHealOK
     SourceStream& stream);
 };
 
+struct AcCmdCRStudyCareSkill
+{
+  uint8_t skillId;
+
+  static Command GetCommand()
+  {
+    return Command::AcCmdCRStudyCareSkill;
+  }
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const AcCmdCRStudyCareSkill& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    AcCmdCRStudyCareSkill& command,
+    SourceStream& stream);
+};
+
+struct AcCmdCRStudyCareSkillCancel
+{
+  static Command GetCommand()
+  {
+    return Command::AcCmdCRStudyCareSkillCancel;
+  }
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const AcCmdCRStudyCareSkillCancel& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    AcCmdCRStudyCareSkillCancel& command,
+    SourceStream& stream);
+};
+
+struct AcCmdCRStudyCareSkillOK
+{
+  uint8_t skillId;
+
+  static Command GetCommand()
+  {
+    return Command::AcCmdCRStudyCareSkillOK;
+  }
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const AcCmdCRStudyCareSkillOK& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    AcCmdCRStudyCareSkillOK& command,
+    SourceStream& stream);
+};
+
 } // namespace server::protocol
 
 #endif // RANCH_MESSAGE_DEFINES_HPP

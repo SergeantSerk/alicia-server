@@ -303,6 +303,12 @@ RanchDirector::RanchDirector(ServerInstance& serverInstance)
     {
       HandleLeaveGuild(clientId, command);
     });
+
+  _commandServer.RegisterCommandHandler<protocol::AcCmdCRStudyCareSkill>(
+    [this](ClientId clientId, const auto& command)
+    {
+      HandleStudyCareSkill(clientId, command);
+    });
 }
 
 void RanchDirector::Initialize()
@@ -2678,6 +2684,21 @@ void RanchDirector::HandleMountFamilyTree(
         .skinId = 1
       }}
   };
+
+  _commandServer.QueueCommand<decltype(response)>(
+    clientId,
+    [response]()
+    {
+      return response;
+    });
+}
+
+void RanchDirector::HandleStudyCareSkill(
+  ClientId clientId,
+  const protocol::AcCmdCRStudyCareSkill command)
+{
+  protocol::AcCmdCRStudyCareSkillOK response{
+    .skillId = command.skillId};
 
   _commandServer.QueueCommand<decltype(response)>(
     clientId,
