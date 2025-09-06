@@ -1775,7 +1775,7 @@ void RanchDirector::HandleRequestGuildInfo(
         .member5 = 0,
         .name = guild.name(),
         .description = guild.description(),
-        .inviteCooldown = 1,
+        .inviteCooldown = 0,
         .member9 = 0,
         .member10 = 0,
         .member11 = 0
