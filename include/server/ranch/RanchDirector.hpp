@@ -73,7 +73,7 @@ public:
     const data::Uid rancherUid,
     protocol::AcCmdCRHideAge::Option option
   );
-  
+
   //! Show popup notification for client indicating a new item in storage, by character UID
   void SendStorageNotification(
     data::Uid characterUid,
@@ -308,6 +308,10 @@ private:
   void HandleGetGuildMemberList(
     ClientId clientId,
     const protocol::AcCmdCRGuildMemberList& command);
+
+  void HandleRequestGuildMatchInfo(
+    ClientId clientId,
+    const protocol::AcCmdCRRequestGuildMatchInfo& command);
 
   //!
   ServerInstance& _serverInstance;
