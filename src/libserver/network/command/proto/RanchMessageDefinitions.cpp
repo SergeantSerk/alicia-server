@@ -2345,8 +2345,8 @@ void AcCmdCRRequestGuildMatchInfoOK::Write(
   const AcCmdCRRequestGuildMatchInfoOK& command,
   SinkStream& stream)
 {
-  stream.Write(command.unk0)
-    .Write(command.unk1)
+  stream.Write(command.guildUid)
+    .Write(command.name)
     .Write(command.unk2)
     .Write(command.unk3)
     .Write(command.unk4)
@@ -2354,7 +2354,7 @@ void AcCmdCRRequestGuildMatchInfoOK::Write(
     .Write(command.totalWins)
     .Write(command.totalLosses)
     .Write(command.unk8)
-    .Write(command.guildRank)
+    .Write(command.rank)
     .Write(command.unk10)
     .Write(command.seasonalWins)
     .Write(command.seasonalLosses);
