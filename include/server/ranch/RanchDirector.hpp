@@ -73,6 +73,11 @@ public:
     const data::Uid rancherUid,
     protocol::AcCmdCRHideAge::Option option
   );
+  
+  //! Show popup notification for client indicating a new item in storage, by character UID
+  void SendStorageNotification(
+    data::Uid characterUid,
+    protocol::AcCmdCRRequestStorage::Category category);
 
   ServerInstance& GetServerInstance();
   Config::Ranch& GetConfig();
