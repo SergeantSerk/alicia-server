@@ -1771,7 +1771,7 @@ void RanchDirector::HandleRequestGuildInfo(
         .member1 = 0,
         .member2 = 0,
         .member3 = 0,
-        .member4 = 0,
+        .memberCount = static_cast<uint8_t>(guild.members().size()),
         .member5 = 0,
         .name = guild.name(),
         .description = guild.description(),

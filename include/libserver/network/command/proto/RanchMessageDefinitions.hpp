@@ -2080,7 +2080,9 @@ struct RanchCommandRequestGuildInfoOK
     uint8_t member1{};
     uint32_t member2{};
     uint32_t member3{};
-    uint8_t member4{};
+    // Shows/hides members in member list
+    // membersCount = 1 seems to be enough
+    uint8_t memberCount{};
     uint32_t member5{};
     std::string name{};
     std::string description{};
