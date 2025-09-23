@@ -79,9 +79,9 @@ RaceDirector::RaceDirector(ServerInstance& serverInstance)
         []()
         {
           return protocol::RaceCommandCountdown{
-            .timestamp = std::chrono::duration_cast<std::chrono::seconds>(
-              (std::chrono::steady_clock::now() + std::chrono::seconds(10))
-                .time_since_epoch()).count()};
+            .timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>(
+              std::chrono::steady_clock::now().time_since_epoch())
+              .count() / 100 + 5 * 10'000'000};
         });
     });
 
@@ -316,33 +316,75 @@ void RaceDirector::HandleStartRace(
   const auto& room = RoomRegistry::Get().GetRoom(clientContext.roomUid);
 
   // Start the race or AcCmdRCRoomCountdown
-  const protocol::RaceCommandStartRaceNotify response{
+  protocol::RaceCommandStartRaceNotify response{
     .gameMode = room.gameMode,
     .skills = true,
-    .someonesOid = 20,
+    .someonesOid = 0,
+    .member4 = room.uid,
     .mapBlockId = room.mapBlockId,
-    .racers = {
-      {
-        .oid = 1,
-        .name = "r",
+    .ip = GetConfig().listen.address.to_uint(),
+    .port = GetConfig().listen.port
+  };
+  
+  auto& roomInstance = _roomInstances[clientContext.roomUid];
+  for (const auto& [characterUid, characterOid] : roomInstance.worldTracker.GetCharacters())
+  {
+    if (response.someonesOid == 0)
+    {
+      response.someonesOid = characterOid;
+    }
+
+    std::string characterName;
+    GetServerInstance().GetDataDirector().GetCharacter(characterUid).Immutable(
+      [&characterName](const data::Character& character)
+    {
+      characterName = character.name();
+    });
+
+    protocol::RaceCommandStartRaceNotify::Racer racer{
+      .oid = characterOid,
+      .name = characterName,
+      .unk2 = 0,
+      .unk3 = 0,
+      .unk4 = 0,
+      .p2dId = 1,
+      .unk6 = 0,
+      .unk7 = 0
+    };
+
+    response.racers.emplace_back(racer);
+  }
+
+  if (response.racers.size() < 8)
+  {
+    const auto& oidOffset = response.racers.back().oid;
+    const auto& botCount = 8 - response.racers.size();
+    for (uint16_t i = 0; i < botCount; i++)
+    {
+      protocol::RaceCommandStartRaceNotify::Racer racer{
+        .oid = static_cast<uint16_t>(oidOffset + i),
+        .name = std::format("Bot {}", i + 1),
         .unk2 = 1,
         .unk3 = 1,
         .unk4 = 1,
-        .p2dId = 3,
+        .p2dId = 1,
         .unk6 = 1,
-        .unk7 = 3,
-      }},
-    .ip = GetConfig().listen.address.to_uint(),
-    .port = htons(GetConfig().listen.port),
-  };
+        .unk7 = 1
+      };
+      response.racers.emplace_back(racer);
+    }
+  }
 
-  // TODO: Send to all clients in the room
-  _commandServer.QueueCommand<decltype(response)>(
-    clientId,
-    [response]()
-    {
-      return response;
-    });
+  for (const ClientId& clientId : roomInstance.clients)
+  {
+    // Send to all clients in the room
+    _commandServer.QueueCommand<decltype(response)>(
+      clientId,
+      [response]()
+      {
+        return response;
+      });
+  }
 }
 
 void RaceDirector::HandleRaceTimer(
