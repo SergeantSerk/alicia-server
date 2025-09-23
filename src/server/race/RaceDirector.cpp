@@ -377,6 +377,17 @@ void RaceDirector::HandleStartRace(
 
   for (const ClientId& clientId : roomInstance.clients)
   {
+    const auto& it = std::find_if(_clientContexts.begin(), _clientContexts.end(),
+      [clientId](const auto& pair)
+      {
+        return pair.first == clientId;
+      });
+
+    if (it == _clientContexts.end())
+      continue;
+
+    response.someonesOid = roomInstance.worldTracker.GetCharacterOid(it->second.characterUid);
+
     // Send to all clients in the room
     _commandServer.QueueCommand<decltype(response)>(
       clientId,
