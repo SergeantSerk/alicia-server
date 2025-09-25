@@ -250,8 +250,7 @@ size_t CommandServer::NetworkEventHandler::OnClientData(
       {
         throw std::runtime_error(
           std::format(
-            "Malformed command {}: Bad command data size '{}', padding is {}.",
-            GetCommandName(commandId),
+            "Malformed command: Bad command data size '{}', padding is {}.",
             magic.length,
             padding)
             .c_str());

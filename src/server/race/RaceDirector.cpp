@@ -157,9 +157,6 @@ void RaceDirector::HandleClientDisconnected(ClientId clientId)
       roomInstance.worldTracker.RemoveCharacter(
         clientContext.characterUid);
 
-      // Check if the leaving player was the leader
-      bool wasLeader = (roomInstance.leaderCharacterUid == clientContext.characterUid);
-
       // Notify other clients in the room.
       protocol::AcCmdCRLeaveRoomNotify notify{
         .characterId = clientContext.characterUid,
@@ -173,18 +170,6 @@ void RaceDirector::HandleClientDisconnected(ClientId clientId)
           {
             return notify;
           });
-      }
-
-      // If the leader left and there are still players, assign new leader
-      if (wasLeader && !roomInstance.clients.empty())
-      {
-        // Find the first remaining client and make them leader
-        ClientId newLeaderClientId = *roomInstance.clients.begin();
-        const auto& newLeaderContext = _clients[newLeaderClientId];
-        roomInstance.leaderCharacterUid = newLeaderContext.characterUid;
-        
-        spdlog::info("Character {} became the new leader of room {} after leader left", 
-                     newLeaderContext.characterUid, clientContext.roomUid);
       }
 
       if (roomInstance.clients.empty())
@@ -230,13 +215,6 @@ void RaceDirector::HandleEnterRoom(
   auto& roomInstance = _roomInstances[command.roomUid];
   roomInstance.worldTracker.AddCharacter(command.characterUid);
 
-  // Set the first player joining as room leader
-  if (roomInstance.clients.empty())
-  {
-    roomInstance.leaderCharacterUid = command.characterUid;
-    spdlog::info("Character {} became the leader of room {}", command.characterUid, command.roomUid);
-  }
-
   // Todo: Roll the code for the connecting client.
   // Todo: The response contains the code, somewhere.
   _commandServer.SetCode(clientId, {});
@@ -265,10 +243,8 @@ void RaceDirector::HandleEnterRoom(
     const auto characterRecord = GetServerInstance().GetDataDirector().GetCharacter(
       characterUid);
     characterRecord.Immutable(
-      [this, characterOid, &protocolRacer, leaderUid = roomInstance.leaderCharacterUid](const data::Character& character)
+      [this, characterOid, &protocolRacer](const data::Character& character)
       {
-        if (character.uid() == leaderUid)
-          protocolRacer.member1 = 1; 
         protocolRacer.level = character.level();
         protocolRacer.oid = characterOid;
         protocolRacer.uid = character.uid();
@@ -378,56 +354,35 @@ void RaceDirector::HandleStartRace(
   protocol::AcCmdCRStartRaceNotify response{
     .gameMode = room.gameMode,
     .skills = false,
-    .someonesOid = 0,
+    .someonesOid = 1,
     .member4 = room.uid,
     .mapBlockId = 41,
     .ip = GetConfig().listen.address.to_uint(),
-    .port = GetConfig().listen.port
-  };
+    .port = htons(GetConfig().listen.port),};
 
   for (const auto& [characterUid, characterOid] : roomInstance.worldTracker.GetCharacters())
   {
-    if (response.someonesOid == 0)
-    {
-      response.someonesOid = characterOid;
-    }
-      std::string characterName;
-    GetServerInstance().GetDataDirector().GetCharacter(characterUid).Immutable(
-      [&characterName](const data::Character& character)
-      {
-        characterName = character.name();
-    });
-  
     protocol::AcCmdCRStartRaceNotify::Racer racer{
       .oid = characterOid,
-      .name = characterName,
-      .unk2 = 0,
-      .unk3 = 0,
-      .unk4 = 0,
-      .p2dId = 1,
-      .unk6 = 0,
-      .unk7 = 0
-    };
+      .unk2 = 1,
+      .unk3 = 1,
+      .unk4 = 1,
+      .p2dId = 2,
+      .unk6 = 1,
+      .unk7 = 1};
 
+    GetServerInstance().GetDataDirector().GetCharacter(characterUid).Immutable(
+      [&racer](const data::Character& character)
+      {
+        racer.name = character.name();
+      });
     response.racers.emplace_back(racer);
   }
 
-  for (const ClientId& clientId : roomInstance.clients)
+  for (const ClientId& roomClientId : roomInstance.clients)
   {
-    const auto& it = std::find_if(_clients.begin(), _clients.end(),
-      [clientId](const auto& pair)
-      {
-        return pair.first == clientId;
-      });
-
-    if (it == _clients.end())
-      continue;
-
-    response.someonesOid = roomInstance.worldTracker.GetCharacterOid(it->second.characterUid);
-
-    // Send to all clients in the room
     _commandServer.QueueCommand<decltype(response)>(
-      clientId,
+      roomClientId,
       [response]()
       {
         return response;

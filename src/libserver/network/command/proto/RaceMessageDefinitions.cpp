@@ -475,7 +475,40 @@ void AcCmdUserRaceTimer::Read(
   AcCmdUserRaceTimer& command,
   SourceStream& stream)
 {
-  stream.Read(command.timestamp);
+  uint32_t actualSize = stream.Size();
+
+  std::vector<uint8_t> payload(actualSize);
+  stream.Read(payload.data(), actualSize);
+
+  const auto& ReadUInt64LE = [](const uint8_t* p)
+  {
+    return (uint64_t)p[0]
+         | ((uint64_t)p[1] << 8)
+         | ((uint64_t)p[2] << 16)
+         | ((uint64_t)p[3] << 24)
+         | ((uint64_t)p[4] << 32)
+         | ((uint64_t)p[5] << 40)
+         | ((uint64_t)p[6] << 48)
+         | ((uint64_t)p[7] << 56);
+  };
+
+  if (actualSize == 9)
+  {
+    command.timestamp = ReadUInt64LE(&payload[1]);
+  }
+  else if (actualSize == 11)
+  {
+    command.timestamp = ReadUInt64LE(&payload[3]);
+  }
+  else if (actualSize >= 8)
+  {
+    // fallback: timestamp at offset 0
+    command.timestamp = ReadUInt64LE(&payload[0]);
+  }
+  else
+  {
+    // handle too-small payload
+  }
 }
 
 void AcCmdUserRaceTimerOK::Write(
