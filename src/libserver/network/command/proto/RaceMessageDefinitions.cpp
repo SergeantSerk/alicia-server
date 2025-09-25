@@ -440,8 +440,8 @@ void RaceCommandUserRaceTimerOK::Write(
   const RaceCommandUserRaceTimerOK& command,
   SinkStream& stream)
 {
-  stream.Write(command.unk0)
-    .Write(command.unk1);
+  stream.Write(command.clientTimestamp)
+    .Write(command.serverTimestamp);
 }
 
 void RaceCommandUserRaceTimerOK::Read(
