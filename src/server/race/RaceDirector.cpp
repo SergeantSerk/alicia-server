@@ -110,6 +110,12 @@ RaceDirector::RaceDirector(ServerInstance& serverInstance)
     {
       HandleAwardEnd(clientId, message);
     });
+
+  _commandServer.RegisterCommandHandler<protocol::AcCmdCRHurdleClearResult>(
+    [this](ClientId clientId, const auto& message)
+    {
+      HandleHurdleClearResult(clientId, message);
+    });
 }
 
 void RaceDirector::Initialize()
@@ -394,7 +400,7 @@ void RaceDirector::HandleStartRace(
 
   protocol::AcCmdCRStartRaceNotify response{
     .gameMode = room.gameMode,
-    .mapBlockId = room.mapBlockId,
+    .mapBlockId = 41,
     .ip = asio::ip::address_v4::loopback().to_uint(),
     .port = static_cast<uint16_t>(10500),
   };
@@ -648,6 +654,53 @@ void RaceDirector::HandleAwardEnd(
         return notify;
       });
   }
+}
+
+void RaceDirector::HandleHurdleClearResult(
+  ClientId clientId,
+  const protocol::AcCmdCRHurdleClearResult& command)
+{
+  spdlog::debug("AcCmdCRHurdleClearResult: oid/{} hurdle clear type/{}",
+    command.characterOid, static_cast<uint8_t>(command.hurdleClearType));
+  const auto& clientContext = _clients[clientId];
+  auto& roomInstance = _roomInstances[clientContext.roomUid];
+  const auto& characterOid = roomInstance.worldTracker.GetCharacterOid(clientContext.characterUid);
+
+  if (command.characterOid != characterOid)
+  {
+    throw std::runtime_error("Command has oid that does not belong to calling character");
+  }
+
+  if (not roomInstance.jumpComboTracker.contains(characterOid))
+  {
+    roomInstance.jumpComboTracker[characterOid] = 0;
+  }
+
+  protocol::AcCmdCRHurdleClearResultOK response{
+    .characterOid = command.characterOid,
+    .hurdleClearType = command.hurdleClearType,
+    .unk3 = 1
+  };
+  
+  if (command.hurdleClearType == protocol::AcCmdCRHurdleClearResult::HurdleClearType::Collision)
+  {
+    response.jumpCombo = roomInstance.jumpComboTracker[characterOid] = 0;
+  }
+  else if (command.hurdleClearType == protocol::AcCmdCRHurdleClearResult::HurdleClearType::FastClear)
+  {
+    response.jumpCombo = std::min(static_cast<uint32_t>(99), ++roomInstance.jumpComboTracker[characterOid]);
+  }
+  else if (command.hurdleClearType == protocol::AcCmdCRHurdleClearResult::HurdleClearType::SlowClear)
+  {
+    response.jumpCombo = roomInstance.jumpComboTracker[characterOid];
+  }
+
+  _commandServer.QueueCommand<decltype(response)>(
+    clientId,
+    [response]()
+    {
+      return response;
+    });
 }
 
 } // namespace server

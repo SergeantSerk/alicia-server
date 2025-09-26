@@ -1107,6 +1107,68 @@ struct AcCmdCRAwardEndNotify
     SourceStream& stream);
 };
 
+struct AcCmdCRHurdleClearResult
+{
+  //! OID of the calling client
+  uint16_t characterOid;
+
+  enum class HurdleClearType : uint8_t
+  {
+    SlowClear = 0,
+    FastClear = 1,
+    Collision = 3
+  };
+  HurdleClearType hurdleClearType;
+
+  static Command GetCommand()
+  {
+    return Command::AcCmdCRHurdleClearResult;
+  }
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const AcCmdCRHurdleClearResult& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    AcCmdCRHurdleClearResult& command,
+    SourceStream& stream);
+};
+
+struct AcCmdCRHurdleClearResultOK
+{
+  //! OID of the calling client
+  uint16_t characterOid;
+  protocol::AcCmdCRHurdleClearResult::HurdleClearType hurdleClearType;
+  //! Max 99 combo
+  uint32_t jumpCombo;
+  uint32_t unk3;
+  
+  static Command GetCommand()
+  {
+    return Command::AcCmdCRHurdleClearResultOK;
+  }
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const AcCmdCRHurdleClearResultOK& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    AcCmdCRHurdleClearResultOK& command,
+    SourceStream& stream);
+};
+
 } // namespace server::protocol
 
 #endif // RACE_MESSAGE_DEFINES_HPP
