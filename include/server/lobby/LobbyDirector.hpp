@@ -211,6 +211,10 @@ private:
     ClientId clientId,
     const protocol::AcCmdLCInviteGuildJoinOK& command);
 
+  void HandleCheckWaitingSeqno(
+    ClientId clientId,
+    const protocol::AcCmdCLCheckWaitingSeqno& command);
+
   //! Pending (online) guild invites
   std::map<data::Uid, std::vector<data::Uid>> _pendingGuildInvites;
 

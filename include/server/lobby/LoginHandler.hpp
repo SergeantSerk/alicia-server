@@ -58,6 +58,13 @@ public:
   void QueueUserCreateNickname(ClientId clientId, const std::string& userName);
   void QueueUserLoginRejected(ClientId clientId, protocol::LobbyCommandLoginCancel::Reason reason);
 
+  struct LoginQueue
+  {
+    ClientId clientId{};
+    protocol::LobbyCommandLogin loginCommand{};
+  };
+  std::queue<LoginQueue> _loginQueue{};
+
 private:
   using Clock = std::chrono::steady_clock;
 

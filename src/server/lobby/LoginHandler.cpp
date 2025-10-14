@@ -36,6 +36,11 @@ LoginHandler::LoginHandler(
   : _server(server)
   , _lobbyDirector(lobbyDirector)
 {
+  // FIXME: delete me
+  for (auto i = 0; i < 15; ++i)
+  {
+    _loginQueue.push(server::LoginHandler::LoginQueue{});
+  }
 }
 
 void LoginHandler::Tick()
@@ -206,6 +211,27 @@ void LoginHandler::HandleUserLogin(
   const ClientId clientId,
   const protocol::LobbyCommandLogin& login)
 {
+  if (_loginQueue.size() > 0)
+  {
+    _loginQueue.push(server::LoginHandler::LoginQueue{
+      .clientId=clientId,
+      .loginCommand=login
+    });
+
+    protocol::AcCmdCLCheckWaitingSeqnoOK response{
+      .unk0 = 0,
+      .unk1 = static_cast<uint32_t>(_loginQueue.size())
+    };
+
+    _server.QueueCommand<decltype(response)>(
+      clientId,
+      [response]()
+      {
+        return response;
+      });
+    return;
+  }
+
   // Validate the command fields.
   if (login.loginId.empty() || login.authKey.empty())
   {

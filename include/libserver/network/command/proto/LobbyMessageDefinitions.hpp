@@ -2086,6 +2086,58 @@ struct AcCmdLCInviteGuildJoinOK
     SourceStream& stream);
 };
 
+struct AcCmdCLCheckWaitingSeqno
+{
+  // Presumably queue position
+  uint32_t unk0{};
+
+  static Command GetCommand()
+  {
+    return Command::AcCmdCLCheckWaitingSeqno;
+  }
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const AcCmdCLCheckWaitingSeqno& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    AcCmdCLCheckWaitingSeqno& command,
+    SourceStream& stream);
+};
+
+struct AcCmdCLCheckWaitingSeqnoOK
+{
+  // Estimated time?
+  uint32_t unk0{};
+  // Queue position?
+  uint32_t unk1{};
+
+  static Command GetCommand()
+  {
+    return Command::AcCmdCLCheckWaitingSeqnoOK;
+  }
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const AcCmdCLCheckWaitingSeqnoOK& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    AcCmdCLCheckWaitingSeqnoOK& command,
+    SourceStream& stream);
+};
+
 } // namespace server::protocol
 
 #endif // LOBBY_MESSAGE_DEFINES_HPP

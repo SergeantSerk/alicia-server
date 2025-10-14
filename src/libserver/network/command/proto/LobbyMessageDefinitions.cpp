@@ -1355,4 +1355,33 @@ void AcCmdLCInviteGuildJoinOK::Write(
   throw std::runtime_error("Not implemented");
 }
 
+void AcCmdCLCheckWaitingSeqno::Read(
+  AcCmdCLCheckWaitingSeqno& command,
+  SourceStream& stream)
+{
+  stream.Read(command.unk0);
+}
+
+void AcCmdCLCheckWaitingSeqno::Write(
+  const AcCmdCLCheckWaitingSeqno& command,
+  SinkStream& stream)
+{
+  throw std::runtime_error("Not implemented");
+}
+
+void AcCmdCLCheckWaitingSeqnoOK::Read(
+  AcCmdCLCheckWaitingSeqnoOK& command,
+  SourceStream& stream)
+{
+  throw std::runtime_error("Not implemented");
+}
+
+void AcCmdCLCheckWaitingSeqnoOK::Write(
+  const AcCmdCLCheckWaitingSeqnoOK& command,
+  SinkStream& stream)
+{
+  stream.Write(command.unk0)
+    .Write(command.unk1);
+}
+
 } // namespace server::protocol

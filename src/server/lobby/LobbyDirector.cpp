@@ -259,6 +259,12 @@ LobbyDirector::LobbyDirector(ServerInstance& serverInstance)
     [this](ClientId clientId, const auto& command)
     {
       HandleAcceptInviteToGuild(clientId, command);
+    });
+
+  _commandServer.RegisterCommandHandler<protocol::AcCmdCLCheckWaitingSeqno>(
+    [this](ClientId clientId, const auto& command)
+    {
+      HandleCheckWaitingSeqno(clientId, command);
     }); 
 }
 
@@ -1524,6 +1530,43 @@ void LobbyDirector::HandleAcceptInviteToGuild(
     command.characterUid,
     inviteeCharacterName
   );
+}
+
+void LobbyDirector::HandleCheckWaitingSeqno(
+  ClientId clientId,
+  const protocol::AcCmdCLCheckWaitingSeqno& command)
+{
+  spdlog::debug("[{}] AcCmdCLCheckWaitingSeqno: {}",
+    clientId,
+    command.unk0);
+  
+  server::LoginHandler::LoginQueue queueItem;
+  for (int i = 0; i < 3; ++i)
+  {
+    if (_loginHandler._loginQueue.empty())
+      break;
+    queueItem = _loginHandler._loginQueue.front();
+    _loginHandler._loginQueue.pop();
+  }
+  
+  if (not _loginHandler._loginQueue.empty())
+  {
+    protocol::AcCmdCLCheckWaitingSeqnoOK response{
+      .unk0 = 0,
+      .unk1 = static_cast<uint32_t>(_loginHandler._loginQueue.size())
+    };
+
+    _commandServer.QueueCommand<decltype(response)>(
+      clientId,
+      [response]()
+      {
+        return response;
+      });
+  }
+  else
+  {
+    _loginHandler.HandleUserLogin(queueItem.clientId, queueItem.loginCommand);
+  }
 }
 
 } // namespace server
