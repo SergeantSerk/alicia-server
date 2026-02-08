@@ -28,18 +28,24 @@ target_compile_features(project-properties
 add_library(platform-properties INTERFACE)
 if (${MSVC})
     target_compile_definitions(platform-properties INTERFACE
-            #_WIN32_WINNT=_WIN32_WINNT_WIN10
+            _WIN32_WINNT=_WIN32_WINNT_WIN10
             NTDDI_VERSION=NTDDI_WIN10_19H1)
     target_link_libraries(platform-properties INTERFACE
             icu.lib)
-    target_compile_options(platform-properties INTERFACE
-            /utf-8 /bigobj)
 elseif(MINGW)
     target_link_libraries(platform-properties INTERFACE
             icuuc icuio icuin ws2_32 mswsock)
 else()
     target_link_libraries(platform-properties INTERFACE
             icuuc icui18n)
+endif()
+
+if (${MSVC})
+    target_compile_options(platform-properties INTERFACE
+            /utf-8 /bigobj /W4 /permissive-)
+else()
+    target_compile_options(platform-properties INTERFACE
+            -Wall -Wextra -Wpedantic)
 endif()
 
 # alicia-libserver target
@@ -92,6 +98,7 @@ add_executable(alicia-server
         src/server/system/ChatSystem.cpp
         src/server/system/InfractionSystem.cpp
         src/server/system/ItemSystem.cpp
+        src/server/system/ModerationSystem.cpp
         src/server/system/OtpSystem.cpp
         src/server/system/RoomSystem.cpp
         src/server/tracker/RaceTracker.cpp

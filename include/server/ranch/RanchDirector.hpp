@@ -195,7 +195,7 @@ private:
   //!
   void HandleBreedingWishlist(
     ClientId clientId,
-    const protocol::RanchCommandBreedingWishlist& command);
+    const protocol::AcCmdCRBreedingWishlist& command);
 
   //!
   void HandleCmdAction(
@@ -259,6 +259,10 @@ private:
   void HandleUpdatePet(
     ClientId clientId,
     const protocol::AcCmdCRUpdatePet& command);
+
+  void SendUpdatePetCancel(
+    ClientId clientId,
+    const protocol::AcCmdRCUpdatePetCancel& command);
   
   void HandleIncubateEgg(
     ClientId clientId,
@@ -395,12 +399,24 @@ private:
     protocol::ChangeNicknameError reason);
 
   void HandleBuyOwnItem(
-    ClientId clientId, 
+    ClientId clientId,
     const protocol::AcCmdCRBuyOwnItem& command);
 
   void HandleSendGift(
-    ClientId clientId, 
+    ClientId clientId,
     const protocol::AcCmdCRSendGift& command);
+
+  void HandleOpenRandomBox(
+    ClientId clientId,
+    const protocol::AcCmdCROpenRandomBox& command);
+
+  void HandleUpdateMountInfo(
+    ClientId clientId,
+    const protocol::AcCmdCRUpdateMountInfo command);
+
+  void HandlePasswordAuth(
+    ClientId clientId,
+    const protocol::AcCmdCRPasswordAuth command);
 
   //!
   ServerInstance& _serverInstance;

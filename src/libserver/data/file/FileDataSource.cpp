@@ -111,7 +111,7 @@ void server::FileDataSource::Terminate()
   metaFile << meta.dump(2);
 }
 
-void server::FileDataSource::CreateUser(data::User& user)
+void server::FileDataSource::CreateUser(data::User&)
 {
 }
 
@@ -136,7 +136,7 @@ void server::FileDataSource::RetrieveUser(const std::string_view& name, data::Us
   user.infractions = json["infractions"].get<std::vector<data::Uid>>();
 }
 
-void server::FileDataSource::StoreUser(const std::string_view& name, const data::User& user)
+void server::FileDataSource::StoreUser(const std::string_view&, const data::User& user)
 {
   const std::filesystem::path dataFilePath = ProduceDataFilePath(
     _userDataPath, user.name());
@@ -283,7 +283,8 @@ void server::FileDataSource::RetrieveCharacter(data::Uid uid, data::Character& c
 
   character.inventory = json["inventory"].get<std::vector<data::Uid>>();
   character.characterEquipment = json["characterEquipment"].get<std::vector<data::Uid>>();
-  character.mountEquipment = json["horseEquipment"].get<std::vector<data::Uid>>();
+  // todo: rename after larger refactor
+  character.expiredEquipment = json["horseEquipment"].get<std::vector<data::Uid>>();
 
   character.horses = json["horses"].get<std::vector<data::Uid>>();
   character.horseSlotCount = json["horseSlotCount"].get<uint8_t>();
@@ -366,7 +367,7 @@ void server::FileDataSource::StoreCharacter(data::Uid uid, const data::Character
 
   json["inventory"] = character.inventory();
   json["characterEquipment"] = character.characterEquipment();
-  json["horseEquipment"] = character.mountEquipment();
+  json["horseEquipment"] = character.expiredEquipment();
 
   json["horses"] = character.horses();
   json["horseSlotCount"] = character.horseSlotCount();
