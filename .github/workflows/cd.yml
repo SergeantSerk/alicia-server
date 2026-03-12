@@ -1,0 +1,149 @@
+name: CD - Build and publish Docker image
+
+# Runs only on direct pushes to master (merged PRs) and semver release tags.
+# These events always use the repository's own GITHUB_TOKEN which has
+# packages:write permission, so pushing to ghcr.io is guaranteed to work.
+#
+# amd64 and arm64 are built in parallel on native runners (no QEMU).
+# A final merge job assembles the per-arch digests into a single manifest list.
+
+on:
+  push:
+    branches: [ "master" ]
+    tags: [ "v*.*.*" ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # 1. Build each architecture in parallel
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+
+    outputs:
+      # Each arch job writes its digest; the merge job reads both
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Push by digest only (no named tag yet) so no partial manifest is
+      # ever publicly visible under a real tag
+      - name: Build and push image digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          platforms: ${{ matrix.platform }}
+          # Push to a temporary digest-only reference; no human-readable tag
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+
+  # 2. Merge digests into a single multi-arch manifest
+  merge:
+    name: Merge and tag manifest
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      digest: ${{ steps.merge.outputs.digest }}
+      tags: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Derive the final named tags from Git metadata
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # Collect the per-arch digests produced by the build matrix jobs and
+      # assemble them into a single manifest list under the real named tags
+      - name: Create multi-arch manifest
+        id: merge
+        uses: docker/build-push-action@v7
+        with:
+          # No build context needed, we're only merging existing digests
+          source: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          digests: ${{ join(needs.build.outputs.digest, ' ') }}
+
+  # 3. Sign the final manifest
+  sign:
+    name: Sign published image
+    runs-on: ubuntu-latest
+    needs: merge
+    permissions:
+      packages: write
+      id-token: write   # required for keyless cosign signing
+
+    steps:
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Sign every tag against the merged manifest digest.
+      # https://github.com/sigstore/cosign
+      - name: Sign the published Docker image
+        env:
+          TAGS: ${{ needs.merge.outputs.tags }}
+          DIGEST: ${{ needs.merge.outputs.digest }}
+        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}

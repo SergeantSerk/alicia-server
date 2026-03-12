@@ -1,0 +1,52 @@
+name: CI - Build Docker image
+
+# Runs on every pull request targeting master.
+# Does NOT push to the registry, so it is safe for fork PRs whose
+# GITHUB_TOKEN only has read permissions by design.
+#
+# amd64 and arm64 are built in parallel on native runners (no QEMU).
+
+on:
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read   # minimum required; no packages:write needed
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      # Set up BuildKit. On native runners no QEMU cross-compilation is needed.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # Build only – push: false prevents any attempt to write to the registry.
+      # Cache is scoped per-platform so the two jobs don't collide.
+      - name: Build Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          platforms: ${{ matrix.platform }}
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
