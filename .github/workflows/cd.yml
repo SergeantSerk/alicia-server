@@ -89,7 +89,7 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # ── 2. Merge digests into a single multi-arch manifest ─────────────────────
+  # 2. Merge digests into a single multi-arch manifest
   merge:
     name: Merge and tag manifest
     runs-on: ubuntu-latest
@@ -99,8 +99,8 @@ jobs:
       packages: write
 
     outputs:
-      digest: ${{ steps.merge.outputs.digest }}
-      tags: ${{ steps.meta.outputs.tags }}
+      digest: ${{ steps.inspect.outputs.digest }}
+      image: ${{ steps.inspect.outputs.image }}
 
     steps:
       - name: Download all digest artifacts
@@ -142,15 +142,21 @@ jobs:
       # Assemble the named multi-arch manifest from the per-arch digests.
       # 'imagetools create' only rewrites registry metadata — no rebuild.
       - name: Create and push multi-arch manifest
-        id: merge
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create \
             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
             $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
 
-      - name: Inspect manifest
-        run: docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+      # Inspect the manifest to retrieve its digest for the signing step.
+      - name: Inspect manifest and capture digest
+        id: inspect
+        run: |
+          image="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}"
+          digest=$(docker buildx imagetools inspect --format '{{json .Manifest}}' "$image" | jq -r '.digest')
+          echo "digest=$digest" >> $GITHUB_OUTPUT
+          echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> $GITHUB_OUTPUT
+          docker buildx imagetools inspect "$image"
 
   # 3. Sign the final manifest
   sign:
@@ -172,10 +178,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Sign every tag against the merged manifest digest.
+      # Sign the manifest by digest, covers all tags pointing to it.
       # https://github.com/sigstore/cosign
       - name: Sign the published Docker image
-        env:
-          TAGS: ${{ needs.merge.outputs.tags }}
-          DIGEST: ${{ needs.merge.outputs.digest }}
-        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+        run: cosign sign --yes "${{ needs.merge.outputs.image }}@${{ needs.merge.outputs.digest }}"
