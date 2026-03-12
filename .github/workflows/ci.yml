@@ -5,6 +5,7 @@ name: CI - Build Docker image
 # GITHUB_TOKEN only has read permissions by design.
 #
 # amd64 and arm64 are built in parallel on native runners (no QEMU).
+# arm/v7 runs on the arm64 runner with lightweight QEMU emulation.
 
 on:
   pull_request:
@@ -27,8 +28,13 @@ jobs:
         include:
           - platform: linux/amd64
             runner: ubuntu-latest
+            platform_pair: linux-amd64
           - platform: linux/arm64
             runner: ubuntu-24.04-arm
+            platform_pair: linux-arm64
+          - platform: linux/arm/v7
+            runner: ubuntu-24.04-arm
+            platform_pair: linux-arm-v7
 
     steps:
       - name: Checkout repository
@@ -36,7 +42,11 @@ jobs:
         with:
           submodules: recursive
 
-      # Set up BuildKit. On native runners no QEMU cross-compilation is needed.
+      # QEMU is required for arm/v7 (no native runner exists).
+      # It is a no-op on the native amd64 and arm64 jobs.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -48,5 +58,5 @@ jobs:
           context: .
           push: false
           platforms: ${{ matrix.platform }}
-          cache-from: type=gha,scope=${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+          cache-from: type=gha,scope=${{ matrix.platform_pair }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.platform_pair }}
