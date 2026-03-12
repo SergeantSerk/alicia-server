@@ -5,7 +5,8 @@ name: CD - Build and publish Docker image
 # packages:write permission, so pushing to ghcr.io is guaranteed to work.
 #
 # amd64 and arm64 are built in parallel on native runners (no QEMU).
-# A final merge job assembles the per-arch digests into a single manifest list.
+# Each arch pushes by digest only; the merge job assembles the named tags
+# using 'docker buildx imagetools create' — no image rebuild.
 
 on:
   push:
@@ -31,12 +32,10 @@ jobs:
         include:
           - platform: linux/amd64
             runner: ubuntu-latest
+            platform_pair: linux-amd64
           - platform: linux/arm64
             runner: ubuntu-24.04-arm
-
-    outputs:
-      # Each arch job writes its digest; the merge job reads both
-      digest: ${{ steps.build.outputs.digest }}
+            platform_pair: linux-arm64
 
     steps:
       - name: Checkout repository
@@ -60,21 +59,37 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Push by digest only (no named tag yet) so no partial manifest is
-      # ever publicly visible under a real tag
-      - name: Build and push image digest
+      # Push by digest only (no named tag yet) so no partial manifest is ever
+      # publicly visible under a real tag while the sibling arch is still building.
+      - name: Build and push image by digest
         id: build
         uses: docker/build-push-action@v7
         with:
           context: .
           push: true
           platforms: ${{ matrix.platform }}
-          # Push to a temporary digest-only reference; no human-readable tag
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true
-          cache-from: type=gha,scope=${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+          cache-from: type=gha,scope=${{ matrix.platform_pair }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.platform_pair }}
 
-  # 2. Merge digests into a single multi-arch manifest
+      # Save the digest to a file so the merge job can pick it up via artifact.
+      # (Matrix job outputs only capture the last job's value, so artifacts are
+      # the reliable way to pass multiple digests downstream.)
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.platform_pair }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ── 2. Merge digests into a single multi-arch manifest ─────────────────────
   merge:
     name: Merge and tag manifest
     runs-on: ubuntu-latest
@@ -88,6 +103,13 @@ jobs:
       tags: ${{ steps.meta.outputs.tags }}
 
     steps:
+      - name: Download all digest artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
       - name: Log into registry ${{ env.REGISTRY }}
         uses: docker/login-action@v4
         with:
@@ -101,7 +123,7 @@ jobs:
         env:
           IMAGE_NAME: ${{ github.repository }}
 
-      # Derive the final named tags from Git metadata
+      # Derive the final named tags and OCI labels from Git metadata.
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v6
@@ -117,20 +139,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      # Collect the per-arch digests produced by the build matrix jobs and
-      # assemble them into a single manifest list under the real named tags
-      - name: Create multi-arch manifest
+      # Assemble the named multi-arch manifest from the per-arch digests.
+      # 'imagetools create' only rewrites registry metadata — no rebuild.
+      - name: Create and push multi-arch manifest
         id: merge
-        uses: docker/build-push-action@v7
-        with:
-          # No build context needed, we're only merging existing digests
-          source: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
-          digests: ${{ join(needs.build.outputs.digest, ' ') }}
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
+
+      - name: Inspect manifest
+        run: docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
 
   # 3. Sign the final manifest
   sign:
