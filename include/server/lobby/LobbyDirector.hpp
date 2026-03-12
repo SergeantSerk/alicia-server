@@ -127,6 +127,9 @@ public:
     data::Uid characterUid,
     const std::string& message);
 
+  void NotifyAchievementReward(
+    data::Uid characterUid);
+
   //! Get users
   //! @return Get users.
   [[nodiscard]] std::unordered_map<std::string, UserInstance>& GetUsers();
@@ -154,11 +157,18 @@ private:
     std::string userName;
     //! A user token.
     std::string userToken;
+    //!
+    std::optional<bool> isAuthenticated;
+    //!
+    bool userAuthenticationRequested{false};
     //! A flag indicating whether the load of the user was requested.
     bool userLoadRequested{false};
     //! A flag indicating whether the load of the user's character was requested.
     bool userCharacterLoadRequested{false};
   };
+
+  void ProcessLoginRequest();
+  void ProcesLoginResponse();
 
   std::unordered_map<network::ClientId, QueuedLogin> _clientLogins;
 

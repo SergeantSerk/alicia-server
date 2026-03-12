@@ -43,6 +43,8 @@ public:
   using DataSourceStoreListener = std::function<bool(const Key& key, Data& data)>;
   using DataSourceDeleteListener = std::function<bool(const Key& key)>;
 
+  using DataSupplier = std::function<std::pair<Key, Data>()>;
+
   DataStorage(
     const DataSourceRetrieveListener& retrieveListener,
     const DataSourceStoreListener& storeListener,
@@ -96,7 +98,7 @@ public:
     return true;
   }
 
-  Record<Data> Create(std::function<std::pair<Key, Data>()> supplier)
+  Record<Data> Create(DataSupplier supplier)
   {
     auto [key, data] = supplier();
     auto [it, created] = _entries.try_emplace(key);
@@ -106,6 +108,30 @@ public:
     auto& entry = it->second;
     entry.value = std::move(data);
     entry.available = true;
+
+    RequestStore(key);
+
+    return Record(&entry.value, &entry.mutex, [this, key]()
+      {
+        RequestStore(key);
+      });
+  }
+
+  Record<Data> GetOrCreate(DataSupplier supplier)
+  {
+    auto [key, data] = supplier();
+    auto [it, created] = _entries.try_emplace(key);
+    if (not created)
+      return Record(&it->second.value, &it->second.mutex, [this, key]()
+      {
+        RequestStore(key);
+      });
+
+    auto& entry = it->second;
+    entry.value = std::move(data);
+    entry.available = true;
+
+    RequestStore(key);
 
     return Record(&entry.value, &entry.mutex, [this, key]()
       {
@@ -229,6 +255,12 @@ private:
   {
     _deleteQueue.insert(key);
   }
+
+  enum class Event
+  {
+    Store,
+    Retrieve,
+  };
 
   struct Entry
   {

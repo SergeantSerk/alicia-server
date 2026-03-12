@@ -39,6 +39,15 @@ enum class Gender : uint8_t
   Girl = 0x2
 };
 
+//! Team color for team-based race modes.
+enum class TeamColor : uint32_t
+{
+  None = 1,
+  Solo = None,
+  Red = 2,
+  Blue = 3
+};
+
 //! Item
 struct Item
 {
@@ -543,10 +552,10 @@ struct RanchCharacter
 //!
 struct Quest
 {
-  uint16_t tid{};
+  uint16_t tid{}; //questid
   uint32_t member0{};
-  uint8_t member1{};
-  uint32_t member2{};
+  uint8_t member1{}; //can only be 0 or 1, 0 is in progress, 1 is completed
+  uint32_t member2{}; //progress
   uint8_t member3{};
   uint8_t member4{};
 
@@ -647,6 +656,17 @@ enum class ChangeNicknameError : uint8_t
   NicknameCooldown = 0x1d   // CEC_NICKNAME_NOT_AVAILABE_DAY
 };
 
+struct DailyQuest
+{
+  uint16_t questId;
+  uint32_t unk_1;
+  uint8_t unk_2; // type of reward: 1 = carrots, 2 = exp
+  uint8_t unk_3;
+
+  static void Write(const DailyQuest& value, SinkStream& stream);
+  static void Read(DailyQuest& value, SourceStream& stream);
+};
+  
 enum class OpenRandomBoxError : uint8_t
 {
   ServerError = 0,   // CR_ERROR
@@ -685,6 +705,42 @@ struct ShopOrder
   //! @param stream Source stream.
   static void Read(
     ShopOrder& command,
+    SourceStream& stream);
+};
+
+//! A common struct used by achievements and quests.
+struct ObjectiveProgress
+{
+  //! Indicates whether the objective is completed.
+  bool isCompleted{};
+
+  //! The progress of the objective.
+  //! This has no effect when it is marked as completed.
+  uint32_t progress{};
+  
+  //! Which tier of the achievement was completed.
+  //! Typically only used by achievement system.
+  enum AchievementTier : uint8_t
+  {
+    None = 0xFF,
+    Bronze = 0x0,
+    Silver = 0x1,
+    Gold = 0x2,
+    Platinum = 0x3
+  } achievementTier{};
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const ObjectiveProgress& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    ObjectiveProgress& command,
     SourceStream& stream);
 };
 

@@ -376,6 +376,32 @@ RanchDirector::RanchDirector(ServerInstance& serverInstance)
       HandleChangeNickname(clientId, command);
     });
 
+  _commandServer.RegisterCommandHandler<protocol::AcCmdCRUpdateDailyQuest>(
+    [this](ClientId clientId, const auto& command)
+    {
+      HandleUpdateDailyQuest(clientId, command);
+    });
+
+  _commandServer.RegisterCommandHandler<protocol::AcCmdCRRegisterDailyQuestGroup>(
+    [this](ClientId clientId, const auto& command)
+    {
+      HandleRegisterDailyQuestGroup(clientId, command);
+    });
+  _commandServer.RegisterCommandHandler<protocol::AcCmdCRRequestDailyQuestReward>(
+    [this](ClientId clientId, const auto& command)
+    {
+      HandleRequestDailyQuestReward(clientId, command);
+    });
+  _commandServer.RegisterCommandHandler<protocol::AcCmdCRRegisterQuest>(
+    [this](ClientId clientId, const auto& command)
+    {
+      HandleRegisterQuest(clientId, command);
+    });
+  _commandServer.RegisterCommandHandler<protocol::AcCmdCRRequestQuestReward>(
+    [this](ClientId clientId, const auto& command)
+    {
+      HandleRequestQuestReward(clientId, command);
+      });
   _commandServer.RegisterCommandHandler<protocol::AcCmdCRConfirmItem>(
     [this](ClientId clientId, const auto& command)
     {
@@ -1188,10 +1214,10 @@ void RanchDirector::HandleChat(
 
   const auto& ranchInstance = _ranches[clientContext.visitingRancherUid];
 
-  std::string sendersName;
-  characterRecord.Immutable([&sendersName](const data::Character& character)
+  std::string characterName;
+  characterRecord.Immutable([&characterName](const data::Character& character)
   {
-    sendersName = character.name();
+    characterName = character.name();
   });
 
   std::string ranchersName;
@@ -1202,10 +1228,11 @@ void RanchDirector::HandleChat(
 
   const auto userName = _serverInstance.GetLobbyDirector().GetUserByCharacterUid(
     clientContext.characterUid).userName;
-  spdlog::debug("[{}'s ranch] {} ({}): {}",
+
+  spdlog::info("[{}'s ranch] {} ({}): {}",
     ranchersName,
+    characterName,
     userName,
-    sendersName,
     chat.message);
 
   const auto sendAllMessages = [this](
@@ -1235,20 +1262,7 @@ void RanchDirector::HandleChat(
   // Process commands, even if user has a mute ban
   if (verdict.commandVerdict)
   {
-    sendAllMessages(clientId, sendersName, true, verdict.commandVerdict->result);
-    return;
-  }
-
-  // Message is not a command, check if user has been muted
-  if (verdict.isMuted)
-  {
-    // Invoking character is muted. Notify the invoker of their infraction and do not broadcast.
-    spdlog::warn("Character '{}' tried to chat in ranch chat but has an active mute infraction.",
-      clientContext.characterUid);
-    protocol::AcCmdCRRanchChatNotify notify{
-      .message = verdict.message,
-      .isSystem = true};
-    _commandServer.QueueCommand<decltype(notify)>(clientId, [notify](){ return notify; });
+    sendAllMessages(clientId, characterName, true, verdict.commandVerdict->result);
     return;
   }
 
@@ -1267,7 +1281,7 @@ void RanchDirector::HandleChat(
 
   for (const auto& ranchClientId : ranchInstance.clients)
   {
-    sendAllMessages(ranchClientId, sendersName, false, {verdict.message});
+    sendAllMessages(ranchClientId, characterName, false, {verdict.message});
   }
 }
 
@@ -2736,8 +2750,7 @@ void RanchDirector::HandleBoostIncubateEgg(
     clientContext.characterUid);
 
   protocol::AcCmdCRBoostIncubateEggOK response{
-    .incubatorSlot = command.incubatorSlot
-  };
+    .incubatorSlot = command.incubatorSlot};
 
   characterRecord.Mutable(
     [this, &command, &response](data::Character& character)
@@ -2748,13 +2761,22 @@ void RanchDirector::HandleBoostIncubateEgg(
       if (not itemRecord)
         throw std::runtime_error("Item not found");
       
-      itemRecord->Immutable([&command, &response](const data::Item& item)
+      // Populate response with item metadata
+      itemRecord->Immutable([this, &response](const data::Item& item)
       {
         response.item = {
           .uid = item.uid(),
-          .tid = item.tid(),
-          .count = item.count()};
+          .tid = item.tid()};
       });
+
+      // Consume (1) item
+      const auto& consumeVerdict = GetServerInstance().GetItemSystem().ConsumeItem(
+        character,
+        response.item.tid,
+        1);
+
+      // TODO: check if item is or can be consumed, response with `AcCmdCRBoostIncubateEggCancel`
+      response.item.count = consumeVerdict.remainingItemCount;
 
       // Find the Egg record through the incubater slot.
       const auto eggRecord = GetServerInstance().GetDataDirector().GetEggCache().Get(
@@ -2764,7 +2786,6 @@ void RanchDirector::HandleBoostIncubateEgg(
 
       for (const auto& egg : *eggRecord)
       {
-
         egg.Mutable([this, &command, &response](data::Egg& eggData)
           {
             if (eggData.incubatorSlot() == command.incubatorSlot)
@@ -2944,7 +2965,7 @@ void RanchDirector::HandleRequestPetBirth(
     });
 
   // Determine which item to create based on whether pet already exists
-  constexpr data::Tid PityItemTid = 46019;
+  constexpr data::Tid PityItemTid = 46018;
   const data::Tid itemTidToCreate = petAlreadyExists ? PityItemTid : petItemTid;
 
   auto createdItemUid = data::InvalidUid;
@@ -3858,20 +3879,86 @@ void RanchDirector::HandleStatusPointApply(
   ClientId clientId,
   const protocol::AcCmdCRStatusPointApply command)
 {
-  protocol::AcCmdCRStatusPointApplyOK response {};
+  const auto& clientContext = GetClientContext(clientId);
+  auto characterRecord = GetServerInstance().GetDataDirector().GetCharacter(
+    clientContext.characterUid);
 
-  const auto horseRecord = GetServerInstance().GetDataDirector().GetHorseCache().Get(command.horseUid);
-  horseRecord->Mutable([&command](data::Horse& horse)
+  // Collect the owned horses by the user's character
+  std::vector<data::Uid> ownedHorses;
+  characterRecord.Mutable([&ownedHorses](data::Character& character)
   {
+    ownedHorses.emplace_back(character.mountUid());
+    std::ranges::copy(character.horses(), std::back_inserter(ownedHorses));
+  });
+
+  const bool isHorseOwned = std::ranges::contains(ownedHorses, command.horseUid);
+  if (not isHorseOwned)
+  {
+    spdlog::warn(
+      "Character {} tried to apply status points to unowned horse {}",
+      clientContext.characterUid, command.horseUid);
+
+    _commandServer.QueueCommand<protocol::AcCmdCRStatusPointApplyCancel>(
+      clientId,
+      []()
+      {
+        return protocol::AcCmdCRStatusPointApplyCancel{};
+      });
+    return;
+  }
+
+  const auto horseRecord = GetServerInstance().GetDataDirector().GetHorseCache().Get(
+    command.horseUid);
+
+  bool applied = false;
+  horseRecord->Mutable([&command, &applied](data::Horse& horse)
+  {
+    if (horse.growthPoints() == 0)
+      return;
+
+    const int64_t agilityDelta = static_cast<int64_t>(command.stats.agility) - static_cast<int64_t>(horse.stats.agility());
+    const int64_t ambitionDelta =  static_cast<int64_t>(command.stats.ambition) - static_cast<int64_t>(horse.stats.ambition());
+    const int64_t rushDelta = static_cast<int64_t>(command.stats.rush) - static_cast<int64_t>(horse.stats.rush());
+    const int64_t enduranceDelta = static_cast<int64_t>(command.stats.endurance) - static_cast<int64_t>(horse.stats.endurance());
+    const int64_t courageDelta = static_cast<int64_t>(command.stats.courage) - static_cast<int64_t>(horse.stats.courage());
+    
+    // Decrease in any of the stats is not allowed.
+    if (agilityDelta < 0
+      || ambitionDelta < 0 
+      || rushDelta < 0
+      || enduranceDelta < 0
+      || courageDelta < 0)
+    {
+      return;
+    }
+
+   const auto totalPointsApplied = agilityDelta + ambitionDelta + rushDelta + enduranceDelta + courageDelta;
+
+    // Increase  of  more than  one stat at a time is not allowed.
+    if (totalPointsApplied > 1)
+      return;
     horse.stats.agility = command.stats.agility;
     horse.stats.ambition = command.stats.ambition;
     horse.stats.rush = command.stats.rush;
     horse.stats.endurance = command.stats.endurance;
     horse.stats.courage = command.stats.courage;
-
     horse.growthPoints() -= 1;
+
+    applied = true;
   });
 
+  if (not applied)
+  {
+    _commandServer.QueueCommand<protocol::AcCmdCRStatusPointApplyCancel>(
+      clientId,
+      []()
+      {
+        return protocol::AcCmdCRStatusPointApplyCancel{};
+      });
+    return;
+  }
+
+  protocol::AcCmdCRStatusPointApplyOK response{};
   _commandServer.QueueCommand<decltype(response)>(
     clientId,
     [response]()
@@ -4415,6 +4502,105 @@ void RanchDirector::HandleChangeSkillCardPreset(
     });
 }
 
+void RanchDirector::HandleUpdateDailyQuest(
+  ClientId clientId,
+  const protocol::AcCmdCRUpdateDailyQuest& command)
+{
+  const auto& clientContext = GetClientContext(clientId);
+  const auto characterRecord = _serverInstance.GetDataDirector().GetCharacter(
+    clientContext.characterUid);
+
+  protocol::AcCmdCRUpdateDailyQuestOK response{};
+  characterRecord.Mutable(
+    [&response](data::Character& character)
+    {
+      character.carrots() += 1000;
+
+      response.newCarrotBalance = character.carrots();
+    });
+
+  response.quest = {command.quest.questId, command.quest.unk_1, command.quest.unk_2, 1};
+  response.unk_1 = 1;
+  response.unk_2 = 1;
+
+  _commandServer.QueueCommand<decltype(response)>(
+    clientId,
+    [response]()
+    {
+      return response;
+    });
+}
+
+void RanchDirector::HandleRegisterDailyQuestGroup(
+  ClientId clientId,
+  const protocol::AcCmdCRRegisterDailyQuestGroup& command)
+{
+  const auto& clientContext = GetClientContext(clientId);
+  const auto characterRecord = _serverInstance.GetDataDirector().GetCharacter(
+    clientContext.characterUid);
+  bool hasDailyQuests = false;
+  std::vector<uint32_t> dailyQuests = {0,0,0};
+
+  characterRecord.Mutable(
+    [&command, &hasDailyQuests, &dailyQuests](data::Character& character)
+    {
+      if (character.dailyQuests().size() == 3)
+      {
+        hasDailyQuests = true;
+        dailyQuests = character.dailyQuests();
+      }
+    });
+
+  if (!hasDailyQuests)
+  {
+    for (auto& quest : command.dailyQuests)
+    {
+      data::Uid questUid = data::InvalidUid;
+      const auto dailyQuestRecord = GetServerInstance().GetDataDirector().CreateDailyQuest();
+      dailyQuestRecord.Mutable(
+        [&quest, &questUid, &characterRecord](data::DailyQuest& dailyQuest)
+        {
+          questUid = dailyQuest.uid();
+          
+          characterRecord.Mutable(
+            [&questUid](data::Character& character)
+            {
+              character.dailyQuests().emplace_back(questUid);
+            });
+
+          dailyQuest.unk_0 = quest.questId;
+          dailyQuest.unk_1 = quest.unk_1;
+          dailyQuest.unk_2 = quest.unk_2;
+          dailyQuest.unk_3 = quest.unk_3;
+        });
+    }
+  }
+  else if (hasDailyQuests)
+  {
+    for (int i = 0; i < 3; i++)
+    {
+      spdlog::debug("Quest id: {}", dailyQuests[i]);
+      const auto dailyQuestRecord = _serverInstance.GetDataDirector().GetDailyQuest(dailyQuests[i]);
+      dailyQuestRecord.Mutable(
+        [&command, &i](data::DailyQuest& dailyQuest)
+      {
+          dailyQuest.unk_0 = command.dailyQuests[i].questId;
+          dailyQuest.unk_1 = command.dailyQuests[i].unk_1;
+          dailyQuest.unk_2 = command.dailyQuests[i].unk_2;
+          dailyQuest.unk_3 = command.dailyQuests[i].unk_3;
+       });
+    }
+  }
+
+  protocol::AcCmdCRRegisterDailyQuestGroupOK response{};
+  response.status = 1;
+  _commandServer.QueueCommand<decltype(response)>(
+    clientId,
+    [response]()
+    {
+      return response;
+    });
+}
 void RanchDirector::HandleConfirmItem(
   ClientId clientId,
   const protocol::AcCmdCRConfirmItem& command)
@@ -4972,6 +5158,55 @@ void RanchDirector::HandlePasswordAuth(
     });
 }
 
+void RanchDirector::HandleRequestDailyQuestReward(
+  ClientId clientId,
+  const protocol::AcCmdCRRequestDailyQuestReward& command)
+{
+  const auto& clientContext = GetClientContext(clientId);
+  const auto characterRecord = _serverInstance.GetDataDirector().GetCharacter(
+    clientContext.characterUid);
+  std::vector<uint32_t> dailyQuests = {0, 0, 0};
+  spdlog::debug("packet info: {} {}", command.unk0, command.unk1);
+
+  protocol::AcCmdCRRequestDailyQuestRewardOK response{};
+
+  characterRecord.Mutable(
+    [&command, &dailyQuests, &response](data::Character& character)
+    {
+      dailyQuests = character.dailyQuests();
+
+      response.rewards.items[0] = {command.unk0, 45001, 0, 1};
+    });
+
+  for (int i = 1; i < 5; i++)
+  {
+    response.rewards.items[i] = {0, 0, 0, 0};
+  }
+  
+  _commandServer.QueueCommand<decltype(response)>(
+    clientId,
+    [response]()
+    {
+      return response;
+    });
+
+  protocol::AcCmdRCUpdateDailyQuestNotify noti{
+    .characterUid = clientContext.characterUid,
+    .questId = 101,
+    .unk = {1, 1, 10},
+    .unk0 = 3,
+    .unk1 = 12,
+    .unk2 = 100,
+    .unk3 = 0};
+
+  _commandServer.QueueCommand<decltype(noti)>(
+    clientId,
+    [noti]()
+    {
+      return noti;
+    });
+}
+
 void RanchDirector::HandleUpdateMountInfo(
   ClientId clientId,
   const protocol::AcCmdCRUpdateMountInfo command)
@@ -4992,17 +5227,53 @@ void RanchDirector::HandleUpdateMountInfo(
 
       if (isHorseValid)
       {
-        character.horses().erase(horseIter);
-        _serverInstance.GetDataDirector().GetHorseCache().Delete(command.horse.uid);
-
         // Remove horse from ranch tracker
         auto& ranchInstance = _ranches[clientContext.visitingRancherUid];
         ranchInstance.tracker.RemoveHorse(command.horse.uid);
+
+        // Remove horse from character and delete from cache
+        character.horses().erase(horseIter);
+        _serverInstance.GetDataDirector().GetHorseCache().Delete(command.horse.uid);
+
+        spdlog::info("User {} returned horse {} to nature",
+          clientContext.userName,
+          command.horse.uid);
       }
     });
   }
 
   _commandServer.QueueCommand<decltype(response)>(
+    clientId,
+    [response]()
+    {
+      return response;
+    });
+}
+
+void RanchDirector::HandleRegisterQuest(
+  ClientId clientId,
+  const protocol::AcCmdCRRegisterQuest& command)
+{
+  const auto& clientContext = GetClientContext(clientId);
+  const auto characterRecord = _serverInstance.GetDataDirector().GetCharacter(
+    clientContext.characterUid);
+
+  spdlog::debug("packet info: {} {}", command.questId, command.npcId);
+
+  protocol::AcCmdCRRegisterQuestOK response{};
+  response.questId = command.questId;
+  
+  if (command.questId == 11030 || command.questId == 12010)
+  {
+    response.progress = 1;
+    response.isCompleted = 1;
+  }
+  else
+  {
+    response.progress = 0;
+    response.isCompleted = 0;
+  }
+   _commandServer.QueueCommand<decltype(response)>(
     clientId,
     [response]()
     {
@@ -5095,6 +5366,39 @@ void RanchDirector::HandleOpenRandomBox(
     });
 }
 
+void RanchDirector::HandleRequestQuestReward(
+  ClientId clientId,
+  const protocol::AcCmdCRRequestQuestReward& command)
+{
+  const auto& clientContext = GetClientContext(clientId);
+  const auto characterRecord = _serverInstance.GetDataDirector().GetCharacter(
+    clientContext.characterUid);
+
+  protocol::AcCmdCRRequestQuestRewardOK response{};
+  response.unk0 = command.unk0;//questTid
+  response.unk1 = 0;//carrots rewarded
+  response.unk2 = 0;//reward count
+  response.unk3 = 1;//effect count
+  response.unk4[0] = {command.unk1, 1};
+
+  //TODO: give rewards
+  for (int i = 0; i < response.unk2; i++)
+  {
+    response.rewards.items[i] = {0, 0, 0, 0};
+  }
+
+  for (int i = 1; i < 5; i++)
+  {
+    response.unk4[i] = {0, 0};
+  }
+
+  _commandServer.QueueCommand<decltype(response)>(
+    clientId,
+    [response]()
+    {
+      return response;
+    });
+}
 void RanchDirector::HandleInviteUser(
   ClientId clientId,
   const protocol::AcCmdCRInviteUser& command)

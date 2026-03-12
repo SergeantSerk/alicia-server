@@ -479,7 +479,7 @@ void AcCmdCRStartRaceNotify::Write(
     .Write(command.unk12)
     .Write(command.racerActiveSkillSet);
 
-  stream.Write(command.unk14)
+  stream.Write(command.isHorseInjuryEnabled)
     .Write(command.carnivalType)
     .Write(command.weatherType)
     .Write(command.unk17);
@@ -1218,12 +1218,12 @@ void AcCmdRCTeamSpurGauge::Write(
   const AcCmdRCTeamSpurGauge& command,
   SinkStream& stream)
 {
-  stream.Write(command.member1)
-    .Write(command.member2)
-    .Write(command.member3)
-    .Write(command.member4)
-    .Write(command.member5)
-    .Write(command.member6);
+  stream.Write(command.team)
+    .Write(command.currentPoints)
+    .Write(command.newPoints)
+    .Write(command.markerSpeed)
+    .Write(command.reserved1)
+    .Write(command.unk5);
 }
 
 void AcCmdRCTeamSpurGauge::Read(
@@ -1913,6 +1913,54 @@ void AcCmdCRKickNotify::Read(
   SourceStream&)
 {
   throw std::runtime_error("Not implemented");
+}
+
+void AcCmdRCTimeoutCareUser::Write(
+  const AcCmdRCTimeoutCareUser& command,
+  SinkStream& stream)
+{
+  stream.Write(command.characterUid);
+}
+
+void AcCmdRCTimeoutCareUser::Read(
+  AcCmdRCTimeoutCareUser&,
+  SourceStream&)
+{
+  throw std::runtime_error("Not implemented");
+}
+
+void AcCmdRCAchievementUpdateNotify::Write(
+  const AcCmdRCAchievementUpdateNotify& command,
+  SinkStream& stream)
+{
+  stream.Write(command.achievementTid)
+    .Write(command.objectiveProgress)
+    .Write(command.carrotBalance);
+}
+
+void AcCmdRCAchievementUpdateNotify::Read(
+  AcCmdRCAchievementUpdateNotify&,
+  SourceStream&)
+{
+  throw std::runtime_error("Not implemented");
+}
+
+void AcCmdCRTriggerizeAct::Write(
+  const AcCmdCRTriggerizeAct& command,
+  SinkStream& stream)
+{
+  stream.Write(command.unk0)
+    .Write(command.unk1)
+    .Write(command.unk2);
+}
+
+void AcCmdCRTriggerizeAct::Read(
+  AcCmdCRTriggerizeAct& command,
+  SourceStream& stream)
+{
+  stream.Read(command.unk0)
+    .Read(command.unk1)
+    .Read(command.unk2);
 }
 
 } // namespace server::protocol

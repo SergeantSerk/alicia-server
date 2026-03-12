@@ -126,8 +126,6 @@ using Clock = std::chrono::system_clock;
 //! User
 struct User
 {
-  //! An UID of the user.
-  dao::Field<Uid> uid{InvalidUid};
   //! A name of the user.
   dao::Field<std::string> name{};
   //! An authorization token of the user.
@@ -348,6 +346,7 @@ struct Character
     dao::Field<Sets> magic{};
   } skills{};
 
+    dao::Field<std::vector<Uid>> dailyQuests{};
   struct Mailbox
   {
     dao::Field<bool> hasNewMail{false};
@@ -472,6 +471,15 @@ struct Egg
   dao::Field<uint32_t> boostsUsed;
 };
 
+struct DailyQuest
+{
+  dao::Field<Uid> uid{InvalidUid};
+  dao::Field<uint16_t> unk_0{};
+  dao::Field<uint32_t> unk_1{};
+  dao::Field<uint8_t> unk_2{};
+  dao::Field<uint8_t> unk_3{};
+};
+  
 struct Mail
 {
   //! Mail type.

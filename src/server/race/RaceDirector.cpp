@@ -186,6 +186,7 @@ RaceDirector::RaceDirector(ServerInstance& serverInstance)
     [this](ClientId clientId, const auto& message)
     {
       HandleRequestSpur(clientId, message);
+      HandleTeamGauge(clientId);
     });
 
   _commandServer.RegisterCommandHandler<protocol::AcCmdCRHurdleClearResult>(
@@ -301,6 +302,12 @@ RaceDirector::RaceDirector(ServerInstance& serverInstance)
     [this](ClientId clientId, const auto& message)
     {
       HandleKickUser(clientId, message);
+    });
+
+  _commandServer.RegisterCommandHandler<protocol::AcCmdCRTriggerizeAct>(
+    [this](ClientId clientId, const auto& message)
+    {
+      HandleTriggerizeAct(clientId, message);
     });
 }
 
@@ -721,6 +728,41 @@ RaceDirector::ClientContext& RaceDirector::GetClientContextByCharacterUid(
   throw std::runtime_error("Character not associated with any client");
 }
 
+RaceDirector::RaceInstance& RaceDirector::GetRaceInstance(
+  const RaceDirector::ClientContext clientContext,
+  const bool checkRacer)
+{
+  // Check if the client has an invalid room UID
+  if (clientContext.roomUid == data::InvalidUid)
+    throw std::runtime_error(
+      std::format("Tried to get race instance for character '{}' but room uid is invalid",
+        clientContext.characterUid));
+
+  // Sanity check if a race instance by that room UID exists
+  if (not _raceInstances.contains(clientContext.roomUid))
+    throw std::runtime_error(
+      std::format("Tried to get race instance for character '{}' but room '{}' does not exist",
+        clientContext.characterUid,
+        clientContext.roomUid));
+
+  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  
+  // If not racing command then we are done here
+  // HurdleClearResult, HandleSpur etc.
+  if (not checkRacer)
+    return raceInstance;
+
+  // Check if the character is a racer
+  // Protects against characters waiting in the waiting room but emitting racing commands
+  if (not raceInstance.tracker.IsRacer(clientContext.characterUid))
+    throw std::runtime_error(
+      std::format("Tried to get race instance '{}' but character '{}' is not a racer",
+        clientContext.roomUid,
+        clientContext.characterUid));
+
+  return raceInstance;
+}
+
 void RaceDirector::HandleEnterRoom(
   ClientId clientId,
   const protocol::AcCmdCREnterRoom& command)
@@ -1113,7 +1155,13 @@ void RaceDirector::HandleChangeTeam(
       }
     });
 
-  const auto& raceInstance = _raceInstances[clientContext.roomUid];
+  const auto& raceInstance = GetRaceInstance(clientContext, false);
+  if (raceInstance.stage != RaceDirector::RaceInstance::Stage::Waiting)
+  {
+    // A racer tried to change teams when not in the waiting room
+    // No response needed, client does not change until it receives an OK
+    return;
+  }
 
   const protocol::AcCmdCRChangeTeamOK response{
     .characterOid = command.characterOid,
@@ -1154,7 +1202,7 @@ void RaceDirector::HandleLeaveRoom(ClientId clientId)
   if (clientContext.roomUid == 0)
     return;
 
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext, false);
 
   _serverInstance.GetDataDirector().GetCharacter(clientContext.characterUid).Immutable(
     [roomUid = clientContext.roomUid](
@@ -1310,7 +1358,7 @@ void RaceDirector::HandleReadyRace(
     .characterUid = clientContext.characterUid,
     .isReady = isPlayerReady};
 
-  const auto& raceInstance = _raceInstances[clientContext.roomUid];
+  const auto& raceInstance = GetRaceInstance(clientContext, false);
   for (const ClientId& raceClientId : raceInstance.clients)
   {
     _commandServer.QueueCommand<decltype(response)>(
@@ -1362,7 +1410,7 @@ void RaceDirector::HandleStartRace(
   [[maybe_unused]] const protocol::AcCmdCRStartRace& command)
 {
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext, false);
 
   if (clientContext.characterUid != raceInstance.masterUid)
     throw std::runtime_error("Client tried to start the race even though they're not the master");
@@ -1555,10 +1603,10 @@ void RaceDirector::HandleStartRace(
 
   // Queue race start after room countdown.
   _scheduler.Queue(
-    [this, roomUid]()
+    [this, clientContext]()
     {
-      // todo: this could fail
-      auto& raceInstance = _raceInstances[roomUid];
+      // Get race instance (and check if added as racer)
+      auto& raceInstance = GetRaceInstance(clientContext);
 
       protocol::AcCmdCRStartRaceNotify notify{
         .raceGameMode = raceInstance.raceGameMode,
@@ -1716,13 +1764,17 @@ void RaceDirector::HandleLoadingComplete(
   const protocol::AcCmdCRLoadingComplete&)
 {
   auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
 
   auto& racer = raceInstance.tracker.GetRacer(
     clientContext.characterUid);
 
   // Switch the racer to the racing state.
   racer.state = tracker::RaceTracker::Racer::State::Racing;
+
+  // Enable relay for racer
+  // Note: handler does not use any of the fields
+  protocol::AcCmdCRRelayCommandNotify notify{};
 
   // Notify all clients in the room that this player's loading is complete
   for (const ClientId& raceClientId : raceInstance.clients)
@@ -1733,6 +1785,13 @@ void RaceDirector::HandleLoadingComplete(
       {
         return protocol::AcCmdCRLoadingCompleteNotify{
           .oid = oid};
+      });
+
+    _commandServer.QueueCommand<decltype(notify)>(
+      raceClientId,
+      [notify]()
+      {
+        return notify;
       });
   }
 }
@@ -1755,7 +1814,7 @@ void RaceDirector::HandleUserRaceFinal(
     command.member3);
 
   auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
 
   // todo: sanity check for course time
   // todo: address npc racers and update their states
@@ -1823,7 +1882,7 @@ void RaceDirector::HandleP2PRaceResult(
   const protocol::AcCmdCRP2PResult&)
 {
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
 
   protocol::AcCmdGameRaceP2PResult result{};
   for (const auto & [uid, racer] : raceInstance.tracker.GetRacers())
@@ -1846,7 +1905,7 @@ void RaceDirector::HandleAwardStart(
   const protocol::AcCmdCRAwardStart& command)
 {
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
 
   protocol::AcCmdRCAwardNotify notify{
     .member1 = command.member1};
@@ -1885,7 +1944,7 @@ void RaceDirector::HandleAwardEnd(
   // todo: this always crashes everyone
 
   // const auto& clientContext = GetClientContext(clientId);
-  // auto& raceInstance = _raceInstances[clientContext.roomUid];
+  // auto& raceInstance = GetRaceInstance(clientContext);
   //
   // protocol::AcCmdCRAwardEndNotify notify{};
   //
@@ -1920,7 +1979,7 @@ void RaceDirector::HandleStarPointGet(
   const protocol::AcCmdCRStarPointGet& command)
 {
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
 
   auto& racer = raceInstance.tracker.GetRacer(
     clientContext.characterUid);
@@ -1965,7 +2024,7 @@ void RaceDirector::HandleRequestSpur(
   const protocol::AcCmdCRRequestSpur& command)
 {
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
 
   auto& racer = raceInstance.tracker.GetRacer(
     clientContext.characterUid);
@@ -2017,7 +2076,7 @@ void RaceDirector::HandleHurdleClearResult(
   const protocol::AcCmdCRHurdleClearResult& command)
 {
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
 
   auto& racer = raceInstance.tracker.GetRacer(
     clientContext.characterUid);
@@ -2153,7 +2212,7 @@ void RaceDirector::HandleStartingRate(
   }
 
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
 
   auto& racer = raceInstance.tracker.GetRacer(
     clientContext.characterUid);
@@ -2193,7 +2252,7 @@ void RaceDirector::HandleRaceUserPos(
   const protocol::AcCmdUserRaceUpdatePos& command)
 {
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
   auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
 
   // TODO: Revise this in NPC races
@@ -2314,18 +2373,6 @@ void RaceDirector::HandleChat(ClientId clientId, const protocol::AcCmdCRChat& co
   const auto verdict = _serverInstance.GetChatSystem().ProcessChatMessage(
     clientContext.characterUid, command.message);
 
-  if (verdict.isMuted)
-  {
-    // Invoking character is muted. Notify the invoker of their infraction
-    spdlog::warn("Character '{}' tried to chat in race chat but has an active mute infraction.",
-      clientContext.characterUid);
-    protocol::AcCmdCRChatNotify notify{
-      .message = verdict.message,
-      .isSystem = true};
-    _commandServer.QueueCommand<decltype(notify)>(clientId, [notify](){ return notify; });
-    return;
-  }
-
   const auto characterRecord = _serverInstance.GetDataDirector().GetCharacter(
     clientContext.characterUid);
 
@@ -2340,8 +2387,8 @@ void RaceDirector::HandleChat(ClientId clientId, const protocol::AcCmdCRChat& co
 
   spdlog::info("[Room {}] {} ({}): {}",
     clientContext.roomUid,
-    userName,
     characterName,
+    userName,
     command.message);
 
   std::vector<protocol::AcCmdCRChatNotify> response;
@@ -2359,6 +2406,15 @@ void RaceDirector::HandleChat(ClientId clientId, const protocol::AcCmdCRChat& co
   }
   else
   {
+    if (verdict.isMuted)
+    {
+      protocol::AcCmdCRChatNotify notify{
+        .message = verdict.message,
+        .isSystem = true};
+      _commandServer.QueueCommand<decltype(notify)>(clientId, [notify](){ return notify; });
+      return;
+    }
+
     response.emplace_back(protocol::AcCmdCRChatNotify{
       .message = verdict.message,
       .author = characterName,
@@ -2376,7 +2432,9 @@ void RaceDirector::HandleChat(ClientId clientId, const protocol::AcCmdCRChat& co
   }
   else
   {
-    const auto& raceInstance = _raceInstances[clientContext.roomUid];
+    // Don't check racer since chat can be sent either
+    // in the waiting room or during a race.
+    const auto& raceInstance = GetRaceInstance(clientContext, false);
 
     for (const auto& notify : response)
     {
@@ -2402,7 +2460,7 @@ void RaceDirector::HandleRelayCommand(
     .member2 = command.member2};
 
   // Get the room instance for this client
-  const auto& raceInstance = _raceInstances[clientContext.roomUid];
+  const auto& raceInstance = GetRaceInstance(clientContext);
 
   // Relay the command to all other clients in the room
   for (const ClientId raceClientId : raceInstance.clients)
@@ -2430,7 +2488,7 @@ void RaceDirector::HandleRelay(
     .data = std::move(command.data),};
 
   // Get the room instance for this client
-  const auto& raceInstance = _raceInstances[clientContext.roomUid];
+  const auto& raceInstance = GetRaceInstance(clientContext);
 
   // Relay the command to all other clients in the room
   for (const ClientId raceClientId : raceInstance.clients)
@@ -2450,7 +2508,7 @@ void RaceDirector::HandleUserRaceActivateInteractiveEvent
   const protocol::AcCmdUserRaceActivateInteractiveEvent& command)
 {
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
 
   // Get the sender's OID from the room tracker
   auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
@@ -2476,7 +2534,7 @@ void RaceDirector::HandleUserRaceActivateEvent
   const protocol::AcCmdUserRaceActivateEvent& command)
 {
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
 
   // Get the sender's OID from the room tracker
   auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
@@ -2501,7 +2559,7 @@ void RaceDirector::HandleUserRaceDeactivateEvent
   const protocol::AcCmdUserRaceDeactivateEvent& command)
 {
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
 
   // Get the sender's OID from the room tracker
   auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
@@ -2525,7 +2583,7 @@ void RaceDirector::HandleRequestMagicItem(
   const protocol::AcCmdCRRequestMagicItem& command)
 {
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
   auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
 
   // TODO: Revise this on NPC races
@@ -2594,7 +2652,7 @@ void RaceDirector::HandleUseMagicItem(
   const protocol::AcCmdCRUseMagicItem& command)
 {
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
   auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
 
   // TODO: Revise this in NPC races
@@ -2791,7 +2849,7 @@ void RaceDirector::HandleUserRaceItemGet(
   const protocol::AcCmdUserRaceItemGet& command)
 {
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
   auto& item = raceInstance.tracker.GetItems().at(command.itemId);
 
   constexpr auto ItemRespawnDuration = std::chrono::milliseconds(500);
@@ -2940,7 +2998,7 @@ void RaceDirector::HandleStartMagicTarget(
   const protocol::AcCmdCRStartMagicTarget& command)
 {
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
   auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
 
   // TODO: Revise this in NPC races
@@ -2957,7 +3015,7 @@ void RaceDirector::HandleChangeMagicTarget(
 {
   // TODO: Throttle how often the same dragon can change between the same two targets
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
   auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
 
   // TODO: Revise this in NPC races
@@ -2999,7 +3057,7 @@ void RaceDirector::HandleActivateSkillEffect(
   const protocol::AcCmdCRActivateSkillEffect& command)
 {
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
 
   auto& targetRacer = raceInstance.tracker.GetRacer(clientContext.characterUid);
 
@@ -3085,12 +3143,9 @@ void RaceDirector::HandleChangeSkillCardPresetId(
     return;
   }
 
-  const auto& clientContext = _clients[clientId];
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
-  auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
-
+  const auto& clientContext = GetClientContext(clientId); 
   GetServerInstance().GetDataDirector().GetCharacter(clientContext.characterUid).Mutable(
-    [&racer, &command](data::Character& character)
+    [&command](data::Character& character)
     {
       // Get skill sets by gamemode
       auto& skillSets =
@@ -3230,7 +3285,7 @@ void RaceDirector::HandleKickUser(
   const protocol::AcCmdCRKick& command)
 {
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext, false);
 
   // Only the room master may kick players.
   if (clientContext.characterUid != raceInstance.masterUid)
@@ -3287,6 +3342,22 @@ void RaceDirector::HandleKickUser(
     return;
   }
 
+  // Retrieve the clientId of the targeted player (IMPORTANT)
+  ClientId targetClientId{};
+  try
+  {
+    targetClientId = GetClientIdByCharacterUid(command.characterUid);
+  }
+  catch (const std::exception& ex)
+  {
+    spdlog::warn(
+      "Character '{}' tried to kick character '{}' but no active client was found: {}",
+      clientContext.characterUid,
+      command.characterUid,
+      ex.what());
+    return;
+  }
+
   spdlog::info(
     "User '{}' kicked user '{}' from room {}.",
     kickerUserName,
@@ -3305,6 +3376,269 @@ void RaceDirector::HandleKickUser(
       {
         return notify;
       });
+  }
+
+  HandleLeaveRoom(targetClientId);
+}
+
+//! Handles team gauge-related logic, including speed and theoretically guild battles.
+//! Primary logic reference: `TeamSpurGaugeInfo` in libconfig
+void RaceDirector::HandleTeamGauge(const ClientId clientId)
+{
+  const auto& clientContext = GetClientContext(clientId);
+  auto& raceInstance = GetRaceInstance(clientContext);
+
+  // If race teammode is not team then we are done here.
+  // This is necessary to ensure no team-related logic is handled when spur logic is handled.
+  // Sanity check for speed gamemode
+  bool isTeamMode = raceInstance.raceTeamMode == protocol::TeamMode::Team;
+  bool isSpeedGameMode = raceInstance.raceGameMode == protocol::GameMode::Speed;
+  if (not isTeamMode or not isSpeedGameMode)
+    return;
+
+  auto& racer = raceInstance.tracker.GetRacer(
+    clientContext.characterUid);
+
+  auto& blueTeam = raceInstance.tracker.blueTeam;
+  auto& redTeam = raceInstance.tracker.redTeam;
+  auto& team = 
+    racer.team == tracker::RaceTracker::Racer::Team::Red ? redTeam :
+    racer.team == tracker::RaceTracker::Racer::Team::Blue ? blueTeam :
+    throw std::runtime_error(
+      std::format(
+        "Racer character uid {} is on unrecognised team {}",
+        clientContext.characterUid,
+        static_cast<uint32_t>(racer.team)));
+
+  // If the invoker's team gauge is locked (beaten by opposing team's spur), reject gauge fill.
+  if (team.gaugeLocked)
+    return;
+
+  // Track team boost count for gauge fill rate calculation.
+  team.boostCount += 1;
+
+  //! Boost fill rates, scaled with team count, iterated with boost count.
+  //! Reference: `TeamSpurGaugeInfo` in libconfig
+  // TODO: put this in the config somewhere
+  const std::vector<float> baseFillRates{
+    1.25f,
+    2.50f,
+    3.00f,
+    3.75f,
+    5.50f,
+    6.50f};
+
+  // Get team size from the racer tracker (immutable for the race duration).
+  // Use the max of the two team sizes to handle potentially unbalanced teams.
+  uint32_t redTeamCount = 0;
+  uint32_t blueTeamCount = 0;
+  for (const auto& _ : raceInstance.tracker.GetRacers() | std::views::values)
+  {
+    if (_.team == tracker::RaceTracker::Racer::Team::Red)
+      ++redTeamCount;
+    else if (_.team == tracker::RaceTracker::Racer::Team::Blue)
+      ++blueTeamCount;
+  }
+  const auto teamSize = std::max(redTeamCount, blueTeamCount);
+
+  const auto fillRateIndex = std::min(
+    team.boostCount,
+    static_cast<uint32_t>(baseFillRates.size() - 1));
+  protocol::AcCmdRCTeamSpurGauge spur{
+    .team = racer.team,
+    .markerSpeed = baseFillRates[fillRateIndex] * teamSize, // Base fill rate * boost count * team size
+    .unk5 = 0 // TODO: identify use
+  };
+
+  //! Base point for a successful boost.
+  constexpr uint32_t BaseBoostPoints = 50;
+  //! Base point difference per team member in a team.
+  constexpr uint32_t BoostPointsDiffBase = 20;
+
+  //! Scale points per boost, based on team size.
+  //! Scale = team size - 1 for the formula.
+  const auto scale = teamSize - 1;
+  //! Final points per boost = base boost + additional boost points.
+  const auto additionalBoostPoints = (BoostPointsDiffBase * scale) + (10 * scale);
+  
+  //! Base max points.
+  constexpr uint32_t BaseMaxPoints = 250;
+  //! Max points difference per team member.
+  constexpr uint32_t MaxPointsDiffBase = 150;
+  //! Final max points for team size.
+  const uint32_t maxPoints = BaseMaxPoints + (MaxPointsDiffBase * scale);
+
+  auto& blueTeamPoints = blueTeam.points;
+  auto& redTeamPoints = redTeam.points;
+  auto& teamPoints = 
+    racer.team == tracker::RaceTracker::Racer::Team::Red ? redTeamPoints :
+    racer.team == tracker::RaceTracker::Racer::Team::Blue ? blueTeamPoints :
+    throw std::runtime_error(
+      std::format(
+        "Racer character uid {} is on unrecognised team {}",
+        clientContext.characterUid,
+        static_cast<uint32_t>(racer.team)));
+  
+  spur.currentPoints = teamPoints / 10.0f;
+  teamPoints = std::min(
+    maxPoints,
+    teamPoints + BaseBoostPoints + additionalBoostPoints);
+  spur.newPoints = teamPoints / 10.0f;
+
+  // If any of the teams got max points to spur, reset points and broadcast team spur
+  bool isTeamRed = racer.team == tracker::RaceTracker::Racer::Team::Red;
+  bool isTeamBlue = racer.team == tracker::RaceTracker::Racer::Team::Blue;
+
+  // Can invoker's team spur
+  bool isTeamSpur = false;
+  // Check if either red or blue team points have hit max
+  if (redTeamPoints >= maxPoints or blueTeamPoints >= maxPoints)
+  {
+    // If any (red or blue) team can spur.
+    // Team check is added for additional validation.
+    isTeamSpur = (isTeamRed and redTeamPoints >= maxPoints) or
+      (isTeamBlue and blueTeamPoints >= maxPoints);
+
+    // Reset points
+    redTeamPoints = 0;
+    blueTeamPoints = 0;
+  }
+
+  // If any of the teams can spur, schedule a spur/reset event.
+  if (isTeamSpur)
+  {
+    // Reset team boost counters
+    redTeam.boostCount = 0;
+    blueTeam.boostCount = 0;
+
+    // Lock the spurring team's gauge so it cannot fill during the spur.
+    auto& spurringTeamInfo =
+      racer.team == tracker::RaceTracker::Racer::Team::Red ? redTeam :
+      racer.team == tracker::RaceTracker::Racer::Team::Blue ? blueTeam :
+      throw std::runtime_error(
+        std::format(
+          "Unrecognised racer team '{}'",
+          static_cast<uint32_t>(racer.team)));
+    spurringTeamInfo.gaugeLocked = true;
+
+    // TODO: put this into the config somewhere
+    // When to begin the spur/reset event.
+    // Reference: `TeamSpurGaugeInfo`/`ReduceWaitTime` in libconfig
+    constexpr auto SpurStartDelay = std::chrono::milliseconds(1500);
+
+    _scheduler.Queue(
+      [this, &raceInstance, &racer, &spurringTeamInfo, maxPoints, teamSize]()
+      {
+        const float BaseLoseTeamSpurConsumeRate = -10.0f;
+        const float BaseWinTeamSpurConsumeRate = -2.5f;
+
+        // Reset boost gauge for the team that lost it.
+        protocol::AcCmdRCTeamSpurGauge beatenSpur{
+          .team = 
+            // This red/blue swap is intentional, if team A wins, team B is punished and reset.
+            racer.team == tracker::RaceTracker::Racer::Team::Red ? tracker::RaceTracker::Racer::Team::Blue :
+            racer.team == tracker::RaceTracker::Racer::Team::Blue ? tracker::RaceTracker::Racer::Team::Red :
+            throw std::runtime_error(
+              std::format(
+                "Unrecognised racer team '{}'",
+                static_cast<uint32_t>(racer.team))),
+          .currentPoints = 0.0f,
+          .newPoints = 0.0f,
+          .markerSpeed = BaseLoseTeamSpurConsumeRate * teamSize, // Scales with `LoseTeamSpurConsumeRate`
+          .unk5 = 3 // Reset gauge and markers.
+        };
+
+        // Trigger spur for the team that has won it.
+        protocol::AcCmdRCTeamSpurGauge successfulSpur{
+          .team = racer.team,
+          .currentPoints = maxPoints / 10.0f,
+          .newPoints = 0.0f,
+          .markerSpeed = BaseWinTeamSpurConsumeRate * teamSize, // Scales with `WinTeamSpurConsumeRate`
+          .unk5 = 0
+        };
+
+        // Spur duration = (maxPoints / 10.0f) / (abs(consumeRate) * teamSize)
+        // For example: 25.0f / (2.5f * 1) = 10s for a team of 1.
+        const float spurDurationSeconds =
+          (maxPoints / 10.0f) / (std::abs(BaseWinTeamSpurConsumeRate) * teamSize);
+
+        // Schedule unlock of the spurring team's gauge after the spur completes.
+        _scheduler.Queue(
+          [&spurringTeamInfo]()
+          {
+            spurringTeamInfo.gaugeLocked = false;
+          },
+          Scheduler::Clock::now() + std::chrono::milliseconds(
+            static_cast<int64_t>(spurDurationSeconds * 1000)));
+
+        std::scoped_lock lock(raceInstance.clientsMutex);
+        for (const ClientId& raceClientId : raceInstance.clients)
+        {
+          // Broadcast losing team's gauge status
+          _commandServer.QueueCommand<decltype(beatenSpur)>(
+            raceClientId,
+            [beatenSpur]()
+            {
+              return beatenSpur;
+            });
+
+          // Broadcast winning team's gauge status
+          _commandServer.QueueCommand<decltype(successfulSpur)>(
+            raceClientId,
+            [successfulSpur]()
+            {
+              return successfulSpur;
+            });
+        }
+      },
+      Scheduler::Clock::now() + SpurStartDelay); 
+  }
+
+  // Broadcast invoker's team gauge status
+  std::scoped_lock lock(raceInstance.clientsMutex);
+  for (const auto& raceClientId : raceInstance.clients)
+  {
+    _commandServer.QueueCommand<decltype(spur)>(raceClientId, [spur](){ return spur; });
+  }
+}
+
+void RaceDirector::HandleTriggerizeAct(
+  ClientId clientId,
+  const protocol::AcCmdCRTriggerizeAct& command)
+{
+  const auto& clientContext = GetClientContext(clientId);
+  auto& raceInstance = GetRaceInstance(clientContext);
+
+  const bool isSpeedGameMode = raceInstance.raceGameMode == protocol::GameMode::Speed;
+  const auto& mapBlockInfo = _serverInstance.GetCourseRegistry().GetMapBlockInfo(raceInstance.raceMapBlockId);
+  const bool isAdvMap = mapBlockInfo.trainingFee > 0;
+
+  // The racer is neither in a speed mode or adv map
+  if (not isSpeedGameMode or not isAdvMap)
+  {
+    spdlog::warn("Character '{}' tried to trigger an interactive object but is not in a speed adv map race.",
+      clientContext.characterUid);
+    return;
+  }
+
+  // TODO: check if the object ID is within range
+  // TODO: check if the event ID is valid
+
+  protocol::AcCmdCRTriggerizeAct response{
+    .unk0 = 1, // Setting this to either 1 or 2 satisfies the conditional in the handler
+    .unk1 = command.unk1,
+    .unk2 = command.unk2};
+
+  {
+    std::scoped_lock lock(raceInstance.clientsMutex);
+    for (const auto& raceClientId : raceInstance.clients)
+    {
+      // Do not broadcast to self
+      if (raceClientId == clientId)
+        continue;
+
+      _commandServer.QueueCommand<decltype(response)>(raceClientId, [response](){ return response; });
+    }
   }
 }
 

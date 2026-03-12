@@ -42,13 +42,6 @@ enum class RoomOptionType : uint16_t
   NpcDifficulty = 1 << 5,
 };
 
-enum class TeamColor : uint32_t
-{
-  None = 1,
-  Red = 2,
-  Blue = 3
-};
-
 struct Avatar
 {
   // List length specified with a uint8_t
@@ -546,7 +539,8 @@ struct AcCmdCRStartRaceNotify
       SourceStream& stream);
   } racerActiveSkillSet{};
 
-  uint8_t unk14{};
+  //! Sets if horses can be injured in this race.
+  bool isHorseInjuryEnabled{false};
   //! Carnival (FestivalMissionInfo)
   uint32_t carnivalType{};
   //! Weather (MapWeatherInfo)
@@ -1711,12 +1705,18 @@ struct AcCmdCRRelayNotify
 
 struct AcCmdRCTeamSpurGauge
 {
-  uint32_t member1{};
-  float member2{};
-  float member3{};
-  float member4{};
-  uint16_t member5{};
-  uint32_t member6{};
+  TeamColor team{};
+  // Team hooves go on fire at 25.0f (maybe higher)
+  float currentPoints{};
+  // New points
+  float newPoints{};
+  //! The speed at which the gauge or marker moves at. Can be negative to roll backwards.
+  float markerSpeed{};
+  //! This is deserialised and handled but not used in the `GameMsg` callback.
+  uint16_t reserved1{};
+  // 3 - resets gauge (set member2 + opposingTeamMarker to 0?)
+  // Incident? Mentions of RcIncidentMgr when referenced
+  uint32_t unk5{};
 
   static Command GetCommand()
   {
@@ -2537,6 +2537,104 @@ struct AcCmdCRKickNotify
   //! @param stream Source stream.
   static void Read(
     AcCmdCRKickNotify& command,
+    SourceStream& stream);
+};
+
+//! Server-initiated, clientbound race waiting room command.
+//! "When {characterName} crosses the finish line, everyone gets a carrot bonus."
+struct AcCmdRCTimeoutCareUser
+{
+  //! UID of the pitied character. 
+  uint32_t characterUid{};
+
+  static Command GetCommand()
+  {
+    return Command::AcCmdRCTimeoutCareUser;
+  }
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const AcCmdRCTimeoutCareUser& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    AcCmdRCTimeoutCareUser& command,
+    SourceStream& stream);
+};
+
+//! Server-initiated, clientbound command to notify that
+//! an achievement has been updated/completed.
+struct AcCmdRCAchievementUpdateNotify
+{
+  // Example configuration:
+  // 10229/true/0/Bronze/555555
+  // - This will complete 10229 Bronze tier and set carrots to 555555.
+
+  // 10224/false/1/None/1111
+  // - This will progress 10224 None tier by 1, and set carrots to 1111.
+
+  //! The TID of the achievement.
+  //! References libconfig/Achievements table.
+  uint16_t achievementTid{};
+
+  ObjectiveProgress objectiveProgress{};
+
+  //! The final carrot count after the achievement.
+  int32_t carrotBalance{};
+
+  static Command GetCommand()
+  {
+    return Command::AcCmdRCAchievementUpdateNotify;
+  }
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const AcCmdRCAchievementUpdateNotify& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    AcCmdRCAchievementUpdateNotify& command,
+    SourceStream& stream);
+};
+
+struct AcCmdCRTriggerizeAct
+{
+  // Can either be 1 or 2. Why, I don't know.
+  // But the handler checks for either one of these values.
+  // Gamemode? Teammode?
+  uint8_t unk0{};
+  // Seems to be interactive object ID
+  uint32_t unk1{};
+  // Seems to be event ID
+  uint16_t unk2{};
+
+  static Command GetCommand()
+  {
+    return Command::AcCmdCRTriggerizeAct;
+  }
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const AcCmdCRTriggerizeAct& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    AcCmdCRTriggerizeAct& command,
     SourceStream& stream);
 };
 

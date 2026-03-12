@@ -73,18 +73,18 @@ void ChatterServer::BeginHost(network::asio::ip::address_v4 address, uint16_t po
         spdlog::error("[Stack] {}({}): {}", entry.source_file(), entry.source_line(), entry.description());
       }
 
-      EndHost();
+      _server.End();
     }
   });
 }
 
 void ChatterServer::EndHost()
 {
-  if (_serverThread.joinable())
-  {
-    _server.End();
-    _serverThread.join();
-  }
+  if (not _serverThread.joinable())
+    return;
+
+  _server.End();
+  _serverThread.join();
 }
 
 void ChatterServer::HandleNetworkTick()
@@ -144,13 +144,13 @@ size_t ChatterServer::OnClientData(
       break;
     }
 
-    const auto commandDataLength = header.length - sizeof(protocol::ChatterCommandHeader);
+    const size_t commandDataLength = header.length - sizeof(protocol::ChatterCommandHeader);
     std::vector<std::byte> commandData(commandDataLength);
 
     SinkStream commandDataSink({commandData.begin(), commandData.end()});
 
     // Read the command data from the command stream.
-    for (uint64_t idx = 0; idx < commandDataLength; ++idx)
+    for (size_t idx = 0; idx < commandDataLength; ++idx)
     {
       std::byte& val = commandData[idx];
       commandStream.Read(val);

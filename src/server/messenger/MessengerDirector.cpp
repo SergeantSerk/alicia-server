@@ -1421,6 +1421,10 @@ void MessengerDirector::HandleChatterUpdateState(
   network::ClientId clientId,
   const protocol::ChatCmdUpdateState& command)
 {
+  auto& clientContext = GetClientContext(clientId, false);
+  if (not clientContext.isAuthenticated)
+    return;
+
   std::string status =
     command.presence.status == protocol::Status::Hidden ? "Hidden" :
     command.presence.status == protocol::Status::Offline ? "Offline" :
@@ -1456,7 +1460,6 @@ void MessengerDirector::HandleChatterUpdateState(
     return;
   }
 
-  auto& clientContext = GetClientContext(clientId);
   // Update state for client context
   clientContext.presence = command.presence;
 
@@ -1572,7 +1575,7 @@ void MessengerDirector::HandleChatterChatInvite(
     [](const std::vector<data::Uid> list, std::string separator = ", ")
     {
       std::string str{};
-      for (auto i = 0; i < list.size(); ++i)
+      for (size_t i = 0; i < list.size(); ++i)
       {
         str += std::to_string(list[i]);
         if (i + 1 < list.size())

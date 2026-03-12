@@ -718,20 +718,18 @@ void AcCmdCLRequestDailyQuestListOK::Write(
   SinkStream& stream)
 {
   stream.Write(command.val0);
-  stream.Write(static_cast<uint16_t>(command.quests.size()));
+  stream.Write(static_cast<uint16_t>(command.unk.size()));
+ 
+  for (auto& member : command.unk)
+  {
+    stream.Write(member);
+  }
 
-  for (const auto& quest : command.quests)
+  stream.Write(static_cast<uint16_t>(command.dailyQuests.size()));
+
+  for (auto& quest : command.dailyQuests)
   {
     stream.Write(quest);
-  }
-  stream.Write(
-    static_cast<uint16_t>(command.val1.size()));
-  for (const auto& entry : command.val1)
-  {
-    stream.Write(entry.val0)
-      .Write(entry.val1)
-      .Write(entry.val2)
-      .Write(entry.val3);
   }
 }
 
@@ -779,7 +777,7 @@ void AcCmdCLEnterRanchCancel::Write(
   const AcCmdCLEnterRanchCancel& command,
   SinkStream& stream)
 {
-  stream.Write(command.unk0);
+  stream.Write(command.reason);
 }
 
 void AcCmdCLEnterRanchCancel::Read(
@@ -1650,6 +1648,20 @@ void AcCmdLCInviteGuildJoinOK::Write(
 {
   // TODO: Return this back to the client to confirm join?
   throw std::runtime_error("Not implemented");
+}
+
+void AcCmdLCAchievementRewardNotify::Read(
+  AcCmdLCAchievementRewardNotify&,
+  SourceStream&)
+{
+  throw std::runtime_error("Not implemented");
+}
+
+void AcCmdLCAchievementRewardNotify::Write(
+  const AcCmdLCAchievementRewardNotify&,
+  SinkStream&)
+{
+  // Empty
 }
 
 } // namespace server::protocol

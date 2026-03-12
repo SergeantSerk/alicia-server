@@ -133,6 +133,9 @@ private:
   ClientContext& GetClientContext(ClientId clientId, bool requireAuthorized = true);
   ClientId GetClientIdByCharacterUid(data::Uid characterUid);
   ClientContext& GetClientContextByCharacterUid(data::Uid characterUid);
+  RaceInstance& GetRaceInstance(
+    const RaceDirector::ClientContext clientContext,
+    const bool checkRacer = true);
   void ScheduleSkillEffect(server::RaceDirector::RaceInstance& raceInstance, server::tracker::Oid attackerId, server::tracker::Oid targetId, uint16_t effectId, std::optional<std::function<void()>> afterEffectRemoved = std::nullopt);
 
   void HandleEnterRoom(
@@ -280,6 +283,13 @@ private:
   void HandleKickUser(
     ClientId clientId,
     const protocol::AcCmdCRKick& command);
+
+  //! Handles the team gauges in team races only.
+  void HandleTeamGauge(const ClientId clientId);
+
+  void HandleTriggerizeAct(
+    ClientId clientId,
+    const protocol::AcCmdCRTriggerizeAct& command);
 
   void PrepareItemSpawners(data::Uid roomUid);
 

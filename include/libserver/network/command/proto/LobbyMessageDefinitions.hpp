@@ -36,8 +36,10 @@ struct AcCmdCLLogin
 {
   uint16_t constant0{0x00};
   uint16_t constant1{0x00};
+  //! Max length 48.
   std::string loginId{};
   uint32_t memberNo{0x00};
+  //! Max length 255.
   std::string authKey{};
   uint8_t val0{};
 
@@ -572,6 +574,7 @@ struct AcCmdCLEnterChannel
 //! Clientbound enter channel response.
 struct AcCmdCLEnterChannelOK
 {
+  //! -1 = disables room listing (does not send `AcCmdCLRoomList`)
   uint8_t unk0{};
   uint16_t unk1{};
 
@@ -1071,19 +1074,10 @@ struct AcCmdCLRequestDailyQuestList
 
 struct AcCmdCLRequestDailyQuestListOK
 {
-  uint32_t val0{};
-  //! Size specified with uint16
-  std::vector<Quest> quests;
-
-  struct Unk
-  {
-    uint16_t val0{};
-    uint32_t val1{};
-    uint8_t val2{};
-    uint8_t val3{};
-  };
-  //! Size specified with uint16
-  std::vector<Unk> val1;
+  uint32_t val0;
+  
+  std::array<Quest, 10> unk;
+  std::array<DailyQuest, 3> dailyQuests;
 
   static Command GetCommand()
   {
@@ -1163,7 +1157,8 @@ struct AcCmdCLEnterRanchOK
 //! Serverbound enter ranch command.
 struct AcCmdCLEnterRanchCancel
 {
-  uint16_t unk0;
+  // 3 - indicates that the ranch is locked.
+  uint16_t reason{};
 
   static Command GetCommand()
   {
@@ -2539,6 +2534,33 @@ struct AcCmdLCInviteGuildJoinOK
   //! @param stream Source stream.
   static void Read(
     AcCmdLCInviteGuildJoinOK& command,
+    SourceStream& stream);
+};
+
+//! Server-initiated, clientbound indicating to the user
+//! that an achievement has been rewarded. Can be sent
+//! to a character in ranch, waiting room or race.
+struct AcCmdLCAchievementRewardNotify
+{
+  // Empty
+
+  static Command GetCommand()
+  {
+    return Command::AcCmdLCAchievementRewardNotify;
+  }
+
+  //! Writes the command to a provided sink stream.
+  //! @param command Command.
+  //! @param stream Sink stream.
+  static void Write(
+    const AcCmdLCAchievementRewardNotify& command,
+    SinkStream& stream);
+
+  //! Reader a command from a provided source stream.
+  //! @param command Command.
+  //! @param stream Source stream.
+  static void Read(
+    AcCmdLCAchievementRewardNotify& command,
     SourceStream& stream);
 };
 

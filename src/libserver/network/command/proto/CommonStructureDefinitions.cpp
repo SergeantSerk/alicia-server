@@ -791,6 +791,21 @@ void SkillSet::Read(SkillSet& value, SourceStream& stream)
   }
 }
 
+void DailyQuest::Write(const DailyQuest& value, SinkStream& stream)
+{
+  stream.Write(value.questId)
+    .Write(value.unk_1)
+    .Write(value.unk_2)
+    .Write(value.unk_3);
+}
+
+void DailyQuest::Read(DailyQuest& value, SourceStream& stream)
+{
+  stream.Read(value.questId)
+    .Read(value.unk_1)
+    .Read(value.unk_2)
+    .Read(value.unk_3);
+}
 void ShopOrder::Write(
   const ShopOrder& order,
   SinkStream& stream)
@@ -807,6 +822,24 @@ void ShopOrder::Read(
   stream.Read(order.goodsSq)
     .Read(order.equipImmediately)
     .Read(order.priceId);
+}
+
+void ObjectiveProgress::Write(
+  const ObjectiveProgress& objectiveProgress,
+  SinkStream& stream)
+{
+  stream.Write(objectiveProgress.isCompleted)
+    .Write(objectiveProgress.progress)
+    .Write(objectiveProgress.achievementTier);
+}
+
+void ObjectiveProgress::Read(
+  ObjectiveProgress& objectiveProgress,
+  SourceStream& stream)
+{
+  stream.Read(objectiveProgress.isCompleted)
+    .Read(objectiveProgress.progress)
+    .Read(objectiveProgress.achievementTier);
 }
 
 } // namespace server::protocol
