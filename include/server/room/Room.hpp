@@ -20,6 +20,7 @@
 #ifndef ROOM_HPP
 #define ROOM_HPP
 
+#include <libserver/network/NetworkDefinitions.hpp>
 #include <libserver/data/DataDefinitions.hpp>
 
 #include <unordered_map>
@@ -54,14 +55,20 @@ public:
       Solo, Red, Blue
     };
 
+    Player(network::ClientId clientId) : _clientId(clientId) {}
+
     bool ToggleReady();
     void SetReady(bool ready);
     [[nodiscard]] bool IsReady() const;
     void SetTeam(Team team);
     [[nodiscard]] Team GetTeam() const;
+    network::ClientId GetClientId() const;
+  
   private:
     bool _isReady = false;
     Team _team = Team::Solo;
+
+    const network::ClientId _clientId;
   };
 
   struct Details
@@ -99,7 +106,7 @@ public:
   [[nodiscard]] bool IsRoomFull() const;
   bool QueuePlayer(data::Uid characterUid);
   bool DequeuePlayer(data::Uid characterUid);
-  bool AddPlayer(data::Uid characterUid);
+  bool AddPlayer(network::ClientId clientId, data::Uid characterUid);
   void RemovePlayer(data::Uid characterUid);
   [[nodiscard]] Player& GetPlayer(data::Uid characterUid);
 

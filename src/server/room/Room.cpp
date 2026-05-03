@@ -52,6 +52,11 @@ Room::Player::Team Room::Player::GetTeam() const
   return _team;
 }
 
+network::ClientId Room::Player::GetClientId() const
+{
+  return _clientId;
+}
+
 Room::Room(uint32_t uid)
   : _uid(uid)
 {
@@ -76,12 +81,12 @@ bool Room::DequeuePlayer(data::Uid characterUid)
   return _queuedPlayers.erase(characterUid) != 0;
 }
 
-bool Room::AddPlayer(data::Uid characterUid)
+bool Room::AddPlayer(network::ClientId clientId, data::Uid characterUid)
 {
   if (_players.size() >= _details.maxPlayerCount)
     return false;
 
-  Player player{};
+  Player player{clientId};
   if (_details.teamMode == TeamMode::Team)
   {
       size_t redTeamCount = 0;

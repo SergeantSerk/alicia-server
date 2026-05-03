@@ -911,10 +911,10 @@ void RaceDirector::HandleEnterRoom(
   {
     _serverInstance.GetRoomSystem().GetRoom(
       command.roomUid,
-      [&isOvercrowded, characterUid = command.characterUid](Room& room)
+      [&isOvercrowded, clientId, characterUid = command.characterUid](Room& room)
       {
         // If the player is not able to be added, the room is full.
-        isOvercrowded = not room.AddPlayer(characterUid);
+        isOvercrowded = not room.AddPlayer(clientId, characterUid);
       });
   }
 
