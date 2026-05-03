@@ -143,11 +143,6 @@ Room::Player& Room::GetPlayer(data::Uid characterUid)
 
 Room::PreventStartReason Room::CanRoomStart()
 {
-  // Only check if room team mode is teams 
-  if (GetRoomDetails().teamMode != Room::TeamMode::Team)
-    // FFA/Singles are always "balanced"
-    return Room::PreventStartReason::None;
-
   uint32_t redTeamCount = 0;
   uint32_t blueTeamCount = 0;
   const data::Uid masterUid = this->GetRoomDetails().masterUid;
@@ -176,7 +171,9 @@ Room::PreventStartReason Room::CanRoomStart()
     }
   }
 
-  if (redTeamCount != blueTeamCount)
+  const bool isTeamModeTeams =
+    GetRoomDetails().teamMode == Room::TeamMode::Team;
+  if (isTeamModeTeams and redTeamCount != blueTeamCount)
     return PreventStartReason::TeamImbalance;
 
   return Room::PreventStartReason::None;
