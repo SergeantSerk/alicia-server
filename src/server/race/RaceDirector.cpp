@@ -909,6 +909,16 @@ void RaceDirector::HandleEnterRoom(
 
   auto& raceInstance = raceInstanceIter->second;
 
+  // If the room instance was just created, set it up.
+  if (inserted)
+  {
+    raceInstance.GetRoom([masterUid = command.characterUid](Room& room)
+    {
+      auto& roomDetails = room.GetRoomDetails();
+      roomDetails.masterUid = masterUid;
+    });
+  }
+
   _serverInstance.GetDataDirector().GetCharacter(clientContext.characterUid).Immutable(
     [inserted, clientContext](const data::Character& character)
     {
