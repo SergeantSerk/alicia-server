@@ -22,6 +22,8 @@
 #include "server/race/RaceDirector.hpp"
 #include "server/race/RaceInstance.hpp"
 
+#include <libserver/util/Util.hpp>
+
 namespace server
 {
 
@@ -51,6 +53,89 @@ void RaceInstance::GetRoom(const std::function<void(const Room&)>& consumer) con
   _raceDirector._serverInstance.GetRoomSystem().GetRoom(
     _roomUid,
     consumer);
+}
+
+void RaceInstance::TickLoading()
+{
+  // Determine whether all racers have started racing.
+  const bool allRacersLoaded = std::ranges::all_of(
+    std::views::values(tracker.GetRacers()),
+    [](const tracker::RaceTracker::Racer& racer)
+    {
+      return racer.state == tracker::RaceTracker::Racer::State::Racing
+        || racer.state == tracker::RaceTracker::Racer::State::Disconnected;
+    });
+
+  const bool loadTimeoutReached = std::chrono::steady_clock::now() >= stageTimeoutTimePoint;
+
+  // If not all the racers have loaded yet and the timeout has not been reached yet
+  // do not start the race.
+  if (not allRacersLoaded && not loadTimeoutReached)
+    return;
+
+  if (loadTimeoutReached)
+  {
+    spdlog::warn("Room {} has reached the loading timeout threshold",
+      this->GetRoomUid());
+  }
+
+  for (auto& racer : tracker.GetRacers() | std::views::values)
+  {
+    // todo: handle the players that did not load in to the race.
+    // for now just consider them disconnected
+    if (racer.state != tracker::RaceTracker::Racer::State::Racing)
+      racer.state = tracker::RaceTracker::Racer::State::Disconnected;
+  }
+
+  const auto mapBlockTemplate = _raceDirector._serverInstance.GetCourseRegistry().GetMapBlockInfo(
+    raceMapBlockId);
+
+  // Switch to the racing stage and set the timeout time point.
+  stage = RaceInstance::Stage::Racing;
+  stageTimeoutTimePoint = std::chrono::steady_clock::now() + std::chrono::seconds(
+    mapBlockTemplate.timeLimit);
+
+  // Set up the race start time point.
+  const auto now = std::chrono::steady_clock::now();
+  raceStartTimePoint = now + std::chrono::seconds(
+    mapBlockTemplate.waitTime);
+
+  const protocol::AcCmdUserRaceCountdown raceCountdown{
+    .raceStartTimestamp = util::TimePointToRaceTimePoint(
+      raceStartTimePoint)};
+
+  // Broadcast the race countdown.
+  _raceDirector.Broadcast(*this, raceCountdown);
+}
+
+void RaceInstance::TickRacing()
+{
+  // TODO: transfer implementation
+}
+
+void RaceInstance::TickFinishing()
+{
+  // TODO: transfer implementation
+}
+
+void RaceInstance::Tick()
+{
+  switch (stage)
+  {
+    case RaceInstance::Stage::Waiting:
+      // Do nothing on waiting stage
+      break;
+    case RaceInstance::Stage::Loading:
+      // Process rooms which are loading
+      this->TickLoading();
+      break;
+    case RaceInstance::Stage::Racing:
+      this->TickRacing();
+      break;
+    case RaceInstance::Stage::Finishing:
+      this->TickFinishing();
+      break;
+  }
 }
 
 } // namespace server

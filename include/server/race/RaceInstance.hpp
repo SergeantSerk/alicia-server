@@ -56,8 +56,14 @@ public:
   void GetRoom(const std::function<void(Room&)>& consumer);
   void GetRoom(const std::function<void(const Room&)>& consumer) const;
 
+  void Tick();
+
 private:
   friend class RaceDirector;
+
+  void TickLoading();
+  void TickRacing();
+  void TickFinishing();
 
   //! A stage of the room.
   Stage stage{Stage::Waiting};
@@ -81,8 +87,9 @@ private:
   //! A time point of when the race is actually started (a countdown is finished).
   std::chrono::steady_clock::time_point raceStartTimePoint;
 
+  RaceDirector& _raceDirector;
+
   const uint32_t _roomUid{};
-  const RaceDirector& _raceDirector;
 };
 
 } // namespace server

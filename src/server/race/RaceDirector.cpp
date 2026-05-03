@@ -20,7 +20,6 @@
 #include "server/race/RaceDirector.hpp"
 
 #include "server/ServerInstance.hpp"
-#include "server/system/RoomSystem.hpp"
 
 #include <libserver/data/helper/ProtocolHelper.hpp>
 
@@ -35,18 +34,7 @@ namespace server
 namespace
 {
 
-//! Converts a steady clock's time point to a race clock's time point.
-//! @param timePoint Time point.
-//! @return Race clock time point.
-uint64_t TimePointToRaceTimePoint(const std::chrono::steady_clock::time_point& timePoint)
-{
-  // Amount of 100ns
-  constexpr uint64_t IntervalConstant = 100;
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(
-    timePoint.time_since_epoch()).count() / IntervalConstant;
-}
-
-const server::registry::Magic::SlotInfo RandomMagicItem(ServerInstance& serverInstance, tracker::RaceTracker::Racer& racer)
+static const server::registry::Magic::SlotInfo RandomMagicItem(ServerInstance& serverInstance, tracker::RaceTracker::Racer& racer)
 {
   const auto& itemPool = (racer.team == tracker::RaceTracker::Racer::Team::Solo
     ? serverInstance.GetMagicRegistry().GetSoloPool()
@@ -396,61 +384,16 @@ void RaceDirector::Tick()
   }
 
   std::scoped_lock lock(_raceInstancesMutex);
-
-  // Process rooms which are loading
   for (auto& [raceUid, raceInstance] : _raceInstances)
   {
-    if (raceInstance.stage != RaceInstance::Stage::Loading)
-      continue;
-
-    // Determine whether all racers have started racing.
-    const bool allRacersLoaded = std::ranges::all_of(
-      std::views::values(raceInstance.tracker.GetRacers()),
-      [](const tracker::RaceTracker::Racer& racer)
-      {
-        return racer.state == tracker::RaceTracker::Racer::State::Racing
-          || racer.state == tracker::RaceTracker::Racer::State::Disconnected;
-      });
-
-    const bool loadTimeoutReached = std::chrono::steady_clock::now() >= raceInstance.stageTimeoutTimePoint;
-
-    // If not all the racers have loaded yet and the timeout has not been reached yet
-    // do not start the race.
-    if (not allRacersLoaded && not loadTimeoutReached)
-      continue;
-
-    if (loadTimeoutReached)
+    try
     {
-      spdlog::warn("Room {} has reached the loading timeout threshold", raceUid);
+      raceInstance.Tick();
     }
-
-    for (auto& racer : raceInstance.tracker.GetRacers() | std::views::values)
+    catch (const std::exception& x)
     {
-      // todo: handle the players that did not load in to the race.
-      // for now just consider them disconnected
-      if (racer.state != tracker::RaceTracker::Racer::State::Racing)
-        racer.state = tracker::RaceTracker::Racer::State::Disconnected;
+      spdlog::error("Exception ticking a race scheduler: {}", x.what());
     }
-
-    const auto mapBlockTemplate = _serverInstance.GetCourseRegistry().GetMapBlockInfo(
-      raceInstance.raceMapBlockId);
-
-    // Switch to the racing stage and set the timeout time point.
-    raceInstance.stage = RaceInstance::Stage::Racing;
-    raceInstance.stageTimeoutTimePoint = std::chrono::steady_clock::now() + std::chrono::seconds(
-      mapBlockTemplate.timeLimit);
-
-    // Set up the race start time point.
-    const auto now = std::chrono::steady_clock::now();
-    raceInstance.raceStartTimePoint = now + std::chrono::seconds(
-      mapBlockTemplate.waitTime);
-
-    const protocol::AcCmdUserRaceCountdown raceCountdown{
-      .raceStartTimestamp = TimePointToRaceTimePoint(
-        raceInstance.raceStartTimePoint)};
-
-    // Broadcast the race countdown.
-    this->Broadcast(raceInstance, raceCountdown);
   }
 
   // Process rooms which are racing
@@ -1502,46 +1445,6 @@ void RaceDirector::PrepareItemSpawners(RaceInstance& raceInstance)
   }
 }
 
-template <WritableStruct C>
-void RaceDirector::Broadcast(const RaceInstance& raceInstance, const C& command)
-{
-  raceInstance.GetRoom(
-    [this, command](const Room& room)
-    {
-      for (const auto& [characterUid, player] : room.GetPlayers())
-        _commandServer.QueueCommand<C>(
-          player.GetClientId(),
-          [command]()
-          {
-            return command;
-          });
-    });
-}
-
-template <WritableStruct C>
-void RaceDirector::BroadcastExceptCharacterUid(
-  const RaceInstance& raceInstance,
-  const C& command,
-  data::Uid skipCharacterUid)
-{
-  raceInstance.GetRoom(
-    [this, command, skipCharacterUid](const Room& room)
-    {
-      for (const auto& [characterUid, player] : room.GetPlayers())
-      {
-        if (characterUid == skipCharacterUid)
-          continue;
-
-        _commandServer.QueueCommand<C>(
-          player.GetClientId(),
-          [command]()
-          {
-            return command;
-          });
-      }
-    });
-}
-
 void RaceDirector::HandleStartRace(
   const ClientId clientId,
   [[maybe_unused]] const protocol::AcCmdCRStartRace& command)
@@ -1864,7 +1767,7 @@ void RaceDirector::HandleRaceTimer(
 {
   protocol::AcCmdUserRaceTimerOK response{
     .clientRaceClock = command.clientClock,
-    .serverRaceClock = TimePointToRaceTimePoint(
+    .serverRaceClock = util::TimePointToRaceTimePoint(
       std::chrono::steady_clock::now()),};
 
   _commandServer.QueueCommand<decltype(response)>(

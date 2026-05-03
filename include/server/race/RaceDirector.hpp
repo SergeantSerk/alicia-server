@@ -25,6 +25,7 @@
 
 #include "server/Config.hpp"
 
+#include "server/system/RoomSystem.hpp"
 #include "server/tracker/RaceTracker.hpp"
 
 #include "libserver/registry/MagicRegistry.hpp"
@@ -290,13 +291,44 @@ private:
   template <WritableStruct C>
   void Broadcast(
     const RaceInstance& raceInstance,
-    const C& command);
+    const C& command)
+  {
+    raceInstance.GetRoom(
+      [this, command](const Room& room)
+      {
+        for (const auto& [characterUid, player] : room.GetPlayers())
+          _commandServer.QueueCommand<C>(
+            player.GetClientId(),
+            [command]()
+            {
+              return command;
+            });
+      });
+  }
 
   template <WritableStruct C>
   void BroadcastExceptCharacterUid(
     const RaceInstance& raceInstance,
     const C& command,
-    data::Uid characterUid);
+    data::Uid skipCharacterUid)
+  {
+    raceInstance.GetRoom(
+      [this, command, skipCharacterUid](const Room& room)
+      {
+        for (const auto& [characterUid, player] : room.GetPlayers())
+        {
+          if (characterUid == skipCharacterUid)
+            continue;
+
+          _commandServer.QueueCommand<C>(
+            player.GetClientId(),
+            [command]()
+            {
+              return command;
+            });
+        }
+      });
+  }
 
   //!
   std::thread test;
