@@ -1579,58 +1579,28 @@ void RaceDirector::HandleStartRace(
     throw std::runtime_error("Client tried to start the race even though they're not the master");
 
   // Check if all race requirements are met to start the race
-
-  bool allPlayersReady = true;
-  bool isTeamMode = false;
-  bool areTeamsBalanced = false;
-
+  Room::PreventStartReason preventStartReason{};
   _serverInstance.GetRoomSystem().GetRoom(
     clientContext.roomUid,
-    [&allPlayersReady, &isTeamMode, &areTeamsBalanced, master = raceInstance.masterUid](Room& room)
+    [&preventStartReason, master = raceInstance.masterUid](Room& room)
     {
-      isTeamMode = room.GetRoomDetails().teamMode == Room::TeamMode::Team;
+      preventStartReason = room.CanRoomStart(master);
+    });
 
-      uint32_t redTeamCount = 0;
-      uint32_t blueTeamCount = 0;
-
-      for (const auto& [characterUid, player] : room.GetPlayers())
-      {
-        switch (player.GetTeam())
-        {
-          case Room::Player::Team::Red:
-            redTeamCount++;
-            break;
-          case Room::Player::Team::Blue:
-            blueTeamCount++;
-            break;
-          default:
-            break;
-        }
-
-        // todo: observer
-        const bool isRoomMaster = characterUid == master;
-
-        // Only count the ready state of player which are not masters.
-        if (!isRoomMaster && !player.IsReady())
-        {
-          allPlayersReady = false;
-          break;
-        }
-      }
-
-      areTeamsBalanced = redTeamCount == blueTeamCount;
-  });
-
-  if (not allPlayersReady)
+  // Check if there is a reason why race cannot start
+  switch (preventStartReason)
   {
-    SendStartRaceCancel(clientId, protocol::AcCmdCRStartRaceCancel::Reason::NotReady);
-    return;
-  }
-
-  if (isTeamMode && not areTeamsBalanced)
-  {
-    SendStartRaceCancel(clientId, protocol::AcCmdCRStartRaceCancel::Reason::NotTeamBalance);
-    return;
+    case Room::PreventStartReason::None:
+      // No reason to prevent race start, continue
+      break;
+    case Room::PreventStartReason::NotAllPlayersReady:
+      SendStartRaceCancel(clientId, protocol::AcCmdCRStartRaceCancel::Reason::NotReady);
+      return;
+    case Room::PreventStartReason::TeamImbalance:
+      SendStartRaceCancel(clientId, protocol::AcCmdCRStartRaceCancel::Reason::NotTeamBalance);
+      return;
+    default:
+      throw std::runtime_error("Prevent start reason not implemented");
   }
 
   const auto roomUid = clientContext.roomUid;

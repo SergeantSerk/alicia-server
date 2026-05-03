@@ -135,6 +135,46 @@ Room::Player& Room::GetPlayer(data::Uid characterUid)
   return playerIter->second;
 }
 
+Room::PreventStartReason Room::CanRoomStart(data::Uid masterUid)
+{
+  // Only check if room team mode is teams 
+  if (GetRoomDetails().teamMode != Room::TeamMode::Team)
+    // FFA/Singles are always "balanced"
+    return Room::PreventStartReason::None;
+
+  uint32_t redTeamCount = 0;
+  uint32_t blueTeamCount = 0;
+
+  for (const auto& [characterUid, player] : this->GetPlayers())
+  {
+    switch (player.GetTeam())
+    {
+      case Room::Player::Team::Red:
+        redTeamCount++;
+        break;
+      case Room::Player::Team::Blue:
+        blueTeamCount++;
+        break;
+      default:
+        break;
+    }
+
+    // todo: observer
+    const bool isRoomMaster = characterUid == masterUid;
+
+    // Only count the ready state of player which are not masters.
+    if (not isRoomMaster && not player.IsReady())
+    {
+      return PreventStartReason::NotAllPlayersReady;
+    }
+  }
+
+  if (redTeamCount != blueTeamCount)
+    return PreventStartReason::TeamImbalance;
+
+  return Room::PreventStartReason::None;
+}
+
 void Room::SetRoomPlaying(bool state)
 {
   _roomIsPlaying = state;

@@ -85,6 +85,13 @@ public:
     bool isPlaying;
   };
 
+  enum PreventStartReason
+  {
+    None,
+    NotAllPlayersReady,
+    TeamImbalance
+  };
+
   explicit Room(uint32_t uid);
 
   [[nodiscard]] bool IsRoomFull() const;
@@ -94,6 +101,7 @@ public:
   void RemovePlayer(data::Uid characterUid);
   [[nodiscard]] Player& GetPlayer(data::Uid characterUid);
 
+  PreventStartReason CanRoomStart(data::Uid masterUid);
   void SetRoomPlaying(bool isPlaying);
 
   [[nodiscard]] uint32_t GetUid() const;
