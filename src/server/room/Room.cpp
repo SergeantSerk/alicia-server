@@ -216,7 +216,7 @@ Room::Snapshot Room::GetRoomSnapshot() const
   };
 }
 
-std::unordered_map<data::Uid, Room::Player>& Room::GetPlayers()
+const std::unordered_map<data::Uid, Room::Player>& Room::GetPlayers()
 {
   return _players;
 }

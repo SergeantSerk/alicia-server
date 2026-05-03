@@ -639,7 +639,7 @@ void RaceDirector::Tick()
       const auto newMasterUid = raceResult.scores[0].uid;
       _serverInstance.GetRoomSystem().GetRoom(
         raceInstance._roomUid,
-        [newMasterUid](server::Room& room)
+        [newMasterUid](Room& room)
         {
           auto& details = room.GetRoomDetails();
           details.masterUid = newMasterUid;
@@ -675,12 +675,12 @@ void RaceDirector::Tick()
         room.SetRoomPlaying(false);
         for (auto& [uid, player] : room.GetPlayers())
         {
-          player.SetReady(false);
+          room.GetPlayer(uid).SetReady(false);
 
           const auto characterRecord = _serverInstance.GetDataDirector().GetCharacter(uid);
           protocol::AcCmdRCUpdateGameMoney updateGameMoney{};
           characterRecord.Immutable(
-            [&player, &updateGameMoney](const data::Character& character)
+            [&updateGameMoney](const data::Character& character)
             {
               updateGameMoney.carrotBalance = character.carrots();
             });
@@ -1448,7 +1448,7 @@ void RaceDirector::HandleLeaveRoom(ClientId clientId)
       // Set new room master
       _serverInstance.GetRoomSystem().GetRoom(
         raceInstance._roomUid,
-        [nextMasterUid](server::Room& room)
+        [nextMasterUid](Room& room)
         {
           auto& details = room.GetRoomDetails();
           details.masterUid = nextMasterUid;
@@ -4002,7 +4002,7 @@ void RaceDirector::HandleKickUser(
   data::Uid roomMasterUid{data::InvalidUid};
   _serverInstance.GetRoomSystem().GetRoom(
     raceInstance._roomUid,
-    [&roomMasterUid](server::Room& room)
+    [&roomMasterUid](Room& room)
     {
       roomMasterUid = room.GetRoomDetails().masterUid;
     });
