@@ -425,9 +425,20 @@ void RaceDirector::BroadcastChangeRoomOptions(
   const data::Uid& roomUid,
   const protocol::AcCmdCRChangeRoomOptionsNotify notify)
 {
-  std::scoped_lock raceLock(_raceInstancesMutex);
-  const auto& raceInstance = _raceInstances.at(roomUid);
-  this->Broadcast(raceInstance, notify);
+  _serverInstance.GetRoomSystem().GetRoom(
+    roomUid,
+    [this, &notify](const Room& room)
+    {
+      for (const auto& [characterUid, player] : room.GetPlayers())
+      {
+        _commandServer.QueueCommand<protocol::AcCmdCRChangeRoomOptionsNotify>(
+          player.GetClientId(),
+          [notify]()
+          {
+            return notify;
+          });
+      }
+    });
 }
 
 void RaceDirector::HandleClientConnected(ClientId clientId)
