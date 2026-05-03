@@ -3532,7 +3532,7 @@ void RaceDirector::HandleKickUser(
   raceInstance.GetRoom(
     [&isTargetInRoom, targetCharacterUid = command.characterUid](const server::Room& room)
     {
-      return room.GetPlayers().contains(targetCharacterUid);
+      isTargetInRoom = room.GetPlayers().contains(targetCharacterUid);
     });
 
   if (!isTargetInRoom)
