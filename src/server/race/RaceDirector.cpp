@@ -396,56 +396,6 @@ void RaceDirector::Tick()
     }
   }
 
-  // Process rooms which are racing
-  for (auto& [raceUid, raceInstance] : _raceInstances)
-  {
-    if (raceInstance.stage != RaceInstance::Stage::Racing)
-      continue;
-
-    const bool raceTimeoutReached = std::chrono::steady_clock::now() >= raceInstance.stageTimeoutTimePoint;
-
-    const bool isFinishing = std::ranges::any_of(
-      std::views::values(raceInstance.tracker.GetRacers()),
-      [](const tracker::RaceTracker::Racer& racer)
-      {
-        return racer.state == tracker::RaceTracker::Racer::State::Finishing;
-      });
-
-    // If the race is not finishing and the timeout was not reached
-    // do not finish the race.
-    if (not isFinishing && not raceTimeoutReached)
-      continue;
-
-    raceInstance.stage = RaceInstance::Stage::Finishing;
-    raceInstance.stageTimeoutTimePoint = std::chrono::steady_clock::now() + std::chrono::seconds(15);
-
-    // If the race timeout was reached notify the clients about the finale.
-    if (raceTimeoutReached)
-    {
-      // Broadcast the race final (only to participants).
-      raceInstance.GetRoom(
-        [this, &raceInstance](const server::Room& room)
-        {
-          const protocol::AcCmdUserRaceFinalNotify notify{};
-          for (const auto& [characterUid, player] : room.GetPlayers())
-          {
-            const bool isParticipant = raceInstance.tracker.IsRacer(
-              characterUid);
-
-            if (not isParticipant)
-              continue;
-
-            _commandServer.QueueCommand<decltype(notify)>(
-              player.GetClientId(),
-              [notify]()
-              {
-                return notify;
-              });
-          }
-        });
-    }
-  }
-
   // Process rooms which are finishing
   for (auto& [raceUid, raceInstance] : _raceInstances)
   {
