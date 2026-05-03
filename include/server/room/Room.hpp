@@ -75,6 +75,8 @@ public:
     TeamMode teamMode{};
     uint8_t npcDifficulty{};
     uint8_t skillBracket{};
+    //! The UID of the room's current master.
+    data::Uid masterUid{data::InvalidUid};
   };
 
   struct Snapshot
@@ -101,7 +103,7 @@ public:
   void RemovePlayer(data::Uid characterUid);
   [[nodiscard]] Player& GetPlayer(data::Uid characterUid);
 
-  PreventStartReason CanRoomStart(data::Uid masterUid);
+  PreventStartReason CanRoomStart();
   void SetRoomPlaying(bool isPlaying);
 
   [[nodiscard]] uint32_t GetUid() const;

@@ -57,8 +57,6 @@ private:
   //! A time point of when the stage timeout occurs.
   std::chrono::steady_clock::time_point stageTimeoutTimePoint;
 
-  //! A master's character UID.
-  data::Uid masterUid{data::InvalidUid};
   //! A race object tracker.
   tracker::RaceTracker tracker;
 

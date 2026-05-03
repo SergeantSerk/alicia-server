@@ -637,7 +637,13 @@ void RaceDirector::Tick()
     if (!raceResult.scores.empty())
     {
       const auto newMasterUid = raceResult.scores[0].uid;
-      raceInstance.masterUid = newMasterUid;
+      _serverInstance.GetRoomSystem().GetRoom(
+        raceInstance._roomUid,
+        [newMasterUid](server::Room& room)
+        {
+          auto& details = room.GetRoomDetails();
+          details.masterUid = newMasterUid;
+        });
 
       const auto& winnerClientContext = GetClientContextByCharacterUid(newMasterUid);
       spdlog::info("Player {} ({}) has won the match and is now master of [Room {}]",
@@ -944,12 +950,6 @@ void RaceDirector::HandleEnterRoom(
 
   auto& raceInstance = raceInstanceIter->second;
 
-  // If the room instance was just created, set it up.
-  if (inserted)
-  {
-    raceInstance.masterUid = command.characterUid;
-  }
-
   _serverInstance.GetDataDirector().GetCharacter(clientContext.characterUid).Immutable(
     [inserted, clientContext](const data::Character& character)
     {
@@ -1009,10 +1009,12 @@ void RaceDirector::HandleEnterRoom(
 
   // Collect the room players.
   std::vector<data::Uid> characterUids;
+  data::Uid roomMasterUid{data::InvalidUid};
   _serverInstance.GetRoomSystem().GetRoom(
     clientContext.roomUid,
-    [&characterUids](Room& room)
+    [&characterUids, &roomMasterUid](Room& room)
     {
+      roomMasterUid = room.GetRoomDetails().masterUid;
       for (const auto& characterUid : room.GetPlayers() | std::views::keys)
       {
         characterUids.emplace_back(characterUid);
@@ -1023,6 +1025,7 @@ void RaceDirector::HandleEnterRoom(
   for (const auto& characterUid : characterUids)
   {
     auto& protocolRacer = response.racers.emplace_back();
+    protocolRacer.isMaster = characterUid == roomMasterUid;
 
     bool isPlayerReady = false;
     Room::Player::Team team;
@@ -1040,12 +1043,9 @@ void RaceDirector::HandleEnterRoom(
     const auto characterRecord = GetServerInstance().GetDataDirector().GetCharacter(
       characterUid);
     characterRecord.Immutable(
-      [this, isPlayerReady, team, &protocolRacer, leaderUid = raceInstance.masterUid](
+      [this, isPlayerReady, team, &protocolRacer](
         const data::Character& character)
       {
-        if (character.uid() == leaderUid)
-          protocolRacer.isMaster = true;
-
         const auto& settingsRecord = GetServerInstance().GetDataDirector().GetSettings(character.settingsUid());
         if (settingsRecord.IsAvailable())
         {
@@ -1381,15 +1381,17 @@ void RaceDirector::HandleLeaveRoom(ClientId clientId)
 
   raceInstance.clients.erase(clientId);
 
+  data::Uid roomMasterUid{data::InvalidUid};
   _serverInstance.GetRoomSystem().GetRoom(
     clientContext.roomUid,
-    [characterUid = clientContext.characterUid](Room& room)
+    [&roomMasterUid, characterUid = clientContext.characterUid](Room& room)
     {
+      roomMasterUid = room.GetRoomDetails().masterUid;
       room.RemovePlayer(characterUid);
     });
 
   // Check if the leaving player was the leader
-  const bool wasMaster = raceInstance.masterUid == clientContext.characterUid;
+  const bool wasMaster = roomMasterUid == clientContext.characterUid;
 
   {
     // Notify other clients in the room about the character leaving.
@@ -1443,7 +1445,14 @@ void RaceDirector::HandleLeaveRoom(ClientId clientId)
 
     if (nextMasterUid != data::InvalidUid)
     {
-      raceInstance.masterUid = nextMasterUid;
+      // Set new room master
+      _serverInstance.GetRoomSystem().GetRoom(
+        raceInstance._roomUid,
+        [nextMasterUid](server::Room& room)
+        {
+          auto& details = room.GetRoomDetails();
+          details.masterUid = nextMasterUid;
+        });
 
       const auto& newMasterClientContext = GetClientContextByCharacterUid(nextMasterUid);
 
@@ -1461,7 +1470,7 @@ void RaceDirector::HandleLeaveRoom(ClientId clientId)
 
       // Notify other clients in the room about the new master.
       protocol::AcCmdCRChangeMasterNotify notify{
-        .masterUid = raceInstance.masterUid};
+        .masterUid = nextMasterUid};
 
       for (const ClientId& raceClientId : raceInstance.clients)
       {
@@ -1575,16 +1584,18 @@ void RaceDirector::HandleStartRace(
   std::scoped_lock lock(_raceInstancesMutex);
   auto& raceInstance = GetRaceInstance(clientContext, false);
 
-  if (clientContext.characterUid != raceInstance.masterUid)
-    throw std::runtime_error("Client tried to start the race even though they're not the master");
-
   // Check if all race requirements are met to start the race
+  data::Uid roomMasterUid{data::InvalidUid};
   Room::PreventStartReason preventStartReason{};
   _serverInstance.GetRoomSystem().GetRoom(
     clientContext.roomUid,
-    [&preventStartReason, master = raceInstance.masterUid](Room& room)
+    [&preventStartReason, &roomMasterUid, invokerCharacterUid = clientContext.characterUid](Room& room)
     {
-      preventStartReason = room.CanRoomStart(master);
+      roomMasterUid = room.GetRoomDetails().masterUid;
+      if (invokerCharacterUid != roomMasterUid)
+        throw std::runtime_error("Client tried to start the race even though they're not the master");
+
+      preventStartReason = room.CanRoomStart();
     });
 
   // Check if there is a reason why race cannot start
@@ -1634,9 +1645,8 @@ void RaceDirector::HandleStartRace(
     if (not gameMode.mapPool.empty())
     {
       uint32_t masterLevel{};
-      const auto characterRecord = _serverInstance.GetDataDirector().GetCharacter(
-        raceInstance.masterUid);
-      characterRecord.Immutable(
+      // Use the room master's level to filter the maps
+      _serverInstance.GetDataDirector().GetCharacter(roomMasterUid).Immutable(
         [&masterLevel](const data::Character& character)
         {
           masterLevel = character.level();
@@ -3989,7 +3999,15 @@ void RaceDirector::HandleKickUser(
   const auto targetUserName = GetClientContextByCharacterUid(command.characterUid).userName;
 
   // Only the room master may kick players.
-  if (clientContext.characterUid != raceInstance.masterUid)
+  data::Uid roomMasterUid{data::InvalidUid};
+  _serverInstance.GetRoomSystem().GetRoom(
+    raceInstance._roomUid,
+    [&roomMasterUid](server::Room& room)
+    {
+      roomMasterUid = room.GetRoomDetails().masterUid;
+    });
+
+  if (clientContext.characterUid != roomMasterUid)
   {
     spdlog::warn(
       "Player {} ({}) tried to kick Player {} ({}) but is not the room master.",

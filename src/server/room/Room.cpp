@@ -135,7 +135,7 @@ Room::Player& Room::GetPlayer(data::Uid characterUid)
   return playerIter->second;
 }
 
-Room::PreventStartReason Room::CanRoomStart(data::Uid masterUid)
+Room::PreventStartReason Room::CanRoomStart()
 {
   // Only check if room team mode is teams 
   if (GetRoomDetails().teamMode != Room::TeamMode::Team)
@@ -144,6 +144,7 @@ Room::PreventStartReason Room::CanRoomStart(data::Uid masterUid)
 
   uint32_t redTeamCount = 0;
   uint32_t blueTeamCount = 0;
+  const data::Uid masterUid = this->GetRoomDetails().masterUid;
 
   for (const auto& [characterUid, player] : this->GetPlayers())
   {
