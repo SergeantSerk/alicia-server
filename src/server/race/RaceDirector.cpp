@@ -876,6 +876,8 @@ void RaceDirector::HandleEnterRoom(
   const protocol::AcCmdCREnterRoomNotify notify{
     .racer = joiningRacer,
     .averageTimeRecord = clientContext.characterUid};
+  // Player should be added to the room at this point,
+  // broadcast to room except joining player
   this->BroadcastExceptCharacterUid(
     raceInstance,
     notify,
