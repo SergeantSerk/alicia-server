@@ -20,6 +20,14 @@
 #ifndef RACEINSTANCE_HPP
 #define RACEINSTANCE_HPP
 
+#include "server/tracker/RaceTracker.hpp"
+
+#include <libserver/data/DataDefinitions.hpp>
+#include <libserver/network/NetworkDefinitions.hpp>
+
+#include <chrono>
+#include <unordered_set>
+
 namespace server
 {
 
@@ -28,10 +36,49 @@ class RaceDirector;
 class RaceInstance
 {
 public:
-  explicit RaceInstance(RaceDirector& raceDirector);
+  enum class Stage
+  {
+    Waiting,
+    Loading,
+    Racing,
+    Finishing,
+  };
+
+  explicit RaceInstance(
+    RaceDirector& raceDirector,
+    uint32_t roomUid);
   ~RaceInstance() = default;
 
 private:
+  friend class RaceDirector;
+
+  //! A stage of the room.
+  Stage stage{Stage::Waiting};
+  //! A time point of when the stage timeout occurs.
+  std::chrono::steady_clock::time_point stageTimeoutTimePoint;
+
+  //! A master's character UID.
+  data::Uid masterUid{data::InvalidUid};
+  //! A race object tracker.
+  tracker::RaceTracker tracker;
+
+  //! A game mode of the race.
+  protocol::GameMode raceGameMode;
+  //! A team mode of the race.
+  protocol::TeamMode raceTeamMode;
+  //! A map block ID of the race.
+  uint16_t raceMapBlockId{};
+  //! A mission ID of the race.
+  uint16_t raceMissionId{};
+
+  //! Represents when a room started loading.
+  std::chrono::steady_clock::time_point loadingStartTimePoint;
+  //! A time point of when the race is actually started (a countdown is finished).
+  std::chrono::steady_clock::time_point raceStartTimePoint;
+  //! A room clients.
+  std::unordered_set<network::ClientId> clients;
+
+  const uint32_t _roomUid{};
   const RaceDirector& _raceDirector;
 };
 

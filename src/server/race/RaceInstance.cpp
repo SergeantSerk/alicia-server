@@ -22,8 +22,11 @@
 namespace server
 {
 
-RaceInstance::RaceInstance(RaceDirector& raceDirector) :
-  _raceDirector(raceDirector)
+RaceInstance::RaceInstance(
+  RaceDirector& raceDirector,
+  uint32_t roomUid) :
+    _raceDirector(raceDirector),
+    _roomUid(roomUid)
 {
 
 }

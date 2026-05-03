@@ -719,7 +719,7 @@ void RaceDirector::BroadcastChangeRoomOptions(
   const protocol::AcCmdCRChangeRoomOptionsNotify notify)
 {
   std::scoped_lock raceLock(_raceInstancesMutex);
-  auto& raceInstance = _raceInstances[roomUid];
+  auto& raceInstance = _raceInstances.at(roomUid);
   for (const auto raceClientId : raceInstance.clients)
   {
     _commandServer.QueueCommand<decltype(notify)>(
@@ -848,7 +848,7 @@ RaceDirector::ClientContext& RaceDirector::GetClientContextByCharacterUid(
   throw std::runtime_error("Character not associated with any client");
 }
 
-RaceDirector::RaceInstance& RaceDirector::GetRaceInstance(
+RaceInstance& RaceDirector::GetRaceInstance(
   const ClientContext& clientContext,
   const bool checkRacer)
 {
@@ -865,7 +865,7 @@ RaceDirector::RaceInstance& RaceDirector::GetRaceInstance(
         clientContext.characterUid,
         clientContext.roomUid));
 
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = _raceInstances.at(clientContext.roomUid);
   
   // If not racing command then we are done here
   // HurdleClearResult, HandleSpur etc.
@@ -938,10 +938,11 @@ void RaceDirector::HandleEnterRoom(
   std::scoped_lock lock(_raceInstancesMutex);
   // Try to emplace the room instance.
   const auto& [raceInstanceIter, inserted] = _raceInstances.try_emplace(
+    command.roomUid,
+    *this,
     command.roomUid);
 
   auto& raceInstance = raceInstanceIter->second;
-  raceInstance.roomUid = command.roomUid;
 
   // If the room instance was just created, set it up.
   if (inserted)
@@ -1561,7 +1562,7 @@ void RaceDirector::PrepareItemSpawners(RaceInstance& raceInstance)
 
   }
   catch (const std::exception& e) {
-    spdlog::warn("Failed to prepare item spawners for room {}: {}", raceInstance.roomUid, e.what());
+    spdlog::warn("Failed to prepare item spawners for room {}: {}", raceInstance._roomUid, e.what());
   }
 }
 
@@ -3815,7 +3816,7 @@ RaceDirector::EffectVerdict RaceDirector::ScheduleSkillEffect(
   }
 
   _scheduler.Queue(
-    [this, roomUid = raceInstance.roomUid, targetOid, targetCharacterUid, effectId,
+    [this, roomUid = raceInstance._roomUid, targetOid, targetCharacterUid, effectId,
       attackRank = magicSlotInfo.attackRank, generation,
       clearMagicTarget = magicSlotInfo.attackRank > 1]()
     {
@@ -4269,7 +4270,7 @@ void RaceDirector::HandleTeamGauge(const ClientId clientId)
     constexpr auto SpurStartDelay = std::chrono::milliseconds(1500);
 
     _scheduler.Queue(
-      [this, roomUid = raceInstance.roomUid, &racer, &spurringTeamInfo, maxPoints, teamSize]()
+      [this, roomUid = raceInstance._roomUid, &racer, &spurringTeamInfo, maxPoints, teamSize]()
       {
         std::scoped_lock lock(_raceInstancesMutex);
         const auto raceInstanceIter = _raceInstances.find(roomUid);;
@@ -4404,7 +4405,7 @@ void RaceDirector::HandleGameCreateClientItem(
     throw new std::runtime_error("AcCmdCRGameCreateClientItem::unk1 != 0, other case not implemented");
 
   const auto& clientContext = GetClientContext(clientId);
-  auto& raceInstance = _raceInstances[clientContext.roomUid];
+  auto& raceInstance = GetRaceInstance(clientContext);
 
   // Get region for this map.
   const auto& mapBlockInfo = _serverInstance.GetCourseRegistry().GetMapBlockInfo(

@@ -21,6 +21,7 @@
 #define RACEDIRECTOR_HPP
 
 #include "P2dIdPool.hpp"
+#include "RaceInstance.hpp"
 
 #include "server/Config.hpp"
 
@@ -57,27 +58,6 @@ public:
   void Initialize();
   void Terminate();
   void Tick();
-
-  bool IsRoomRacing(uint32_t uid)
-  {
-    std::scoped_lock lock(_raceInstancesMutex);
-    const auto roomIter = _raceInstances.find(uid);
-    if (roomIter == _raceInstances.cend())
-      return false;
-
-    return roomIter->second.stage == RaceInstance::Stage::Racing ||
-      roomIter->second.stage == RaceInstance::Stage::Loading;
-  }
-
-  size_t GetRoomPlayerCount(uint32_t uid)
-  {
-    std::scoped_lock lock(_raceInstancesMutex);
-    const auto roomIter = _raceInstances.find(uid);
-    if (roomIter == _raceInstances.cend())
-      return 0;
-
-    return roomIter->second.tracker.GetRacers().size();
-  }
 
   void BroadcastChangeRoomOptions(
     const data::Uid& roomUid,
@@ -122,43 +102,6 @@ private:
     std::string userName;
   };
 
-  struct RaceInstance
-  {
-    //! A stage of the room.
-    enum class Stage
-    {
-      Waiting,
-      Loading,
-      Racing,
-      Finishing,
-    } stage{Stage::Waiting};
-    //! A time point of when the stage timeout occurs.
-    std::chrono::steady_clock::time_point stageTimeoutTimePoint;
-
-    uint32_t roomUid{};
-
-    //! A master's character UID.
-    data::Uid masterUid{data::InvalidUid};
-    //! A race object tracker.
-    tracker::RaceTracker tracker;
-
-    //! A game mode of the race.
-    protocol::GameMode raceGameMode;
-    //! A team mode of the race.
-    protocol::TeamMode raceTeamMode;
-    //! A map block ID of the race.
-    uint16_t raceMapBlockId{};
-    //! A mission ID of the race.
-    uint16_t raceMissionId{};
-
-    //! Represents when a room started loading.
-    std::chrono::steady_clock::time_point loadingStartTimePoint;
-    //! A time point of when the race is actually started (a countdown is finished).
-    std::chrono::steady_clock::time_point raceStartTimePoint;
-    //! A room clients.
-    std::unordered_set<ClientId> clients;
-  };
-
   race::P2dId GetOrCreateP2dId(ClientId clientId);
 
   ClientContext& GetClientContext(ClientId clientId, bool requireAuthorized = true);
@@ -169,13 +112,13 @@ private:
     const bool checkRacer = true);
 
   EffectVerdict ScheduleSkillEffect(
-    server::RaceDirector::RaceInstance& raceInstance,
+    server::RaceInstance& raceInstance,
     server::tracker::Oid attackerId, server::tracker::Oid targetId,
     const server::registry::Magic::SlotInfo& magicSlotInfo,
     const uint16_t effectInstanceId = 0);
 
   void RemoveEffect(
-    server::RaceDirector::RaceInstance& raceInstance,
+    server::RaceInstance& raceInstance,
     server::tracker::RaceTracker::Racer& racer,
     uint32_t effectId);
 
