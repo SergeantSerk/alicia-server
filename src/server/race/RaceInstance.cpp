@@ -34,6 +34,11 @@ RaceInstance::RaceInstance(
 
 }
 
+uint32_t RaceInstance::GetRoomUid()
+{
+  return _roomUid;
+}
+
 void RaceInstance::GetRoom(const std::function<void(Room&)>& consumer)
 {
   _raceDirector._serverInstance.GetRoomSystem().GetRoom(

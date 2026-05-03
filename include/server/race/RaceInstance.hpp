@@ -51,6 +51,8 @@ public:
     uint32_t roomUid);
   ~RaceInstance() = default;
 
+  uint32_t GetRoomUid();
+
   void GetRoom(const std::function<void(Room&)>& consumer);
   void GetRoom(const std::function<void(const Room&)>& consumer) const;
 

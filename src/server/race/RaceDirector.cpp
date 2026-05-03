@@ -1376,13 +1376,11 @@ void RaceDirector::HandleLeaveRoom(ClientId clientId)
     if (nextMasterUid != data::InvalidUid)
     {
       // Set new room master
-      _serverInstance.GetRoomSystem().GetRoom(
-        raceInstance._roomUid,
-        [nextMasterUid](Room& room)
-        {
-          auto& details = room.GetRoomDetails();
-          details.masterUid = nextMasterUid;
-        });
+      raceInstance.GetRoom([nextMasterUid](Room& room)
+      {
+        auto& details = room.GetRoomDetails();
+        details.masterUid = nextMasterUid;
+      });
 
       const auto& newMasterClientContext = GetClientContextByCharacterUid(nextMasterUid);
 
@@ -1496,8 +1494,11 @@ void RaceDirector::PrepareItemSpawners(RaceInstance& raceInstance)
     }
 
   }
-  catch (const std::exception& e) {
-    spdlog::warn("Failed to prepare item spawners for room {}: {}", raceInstance._roomUid, e.what());
+  catch (const std::exception& e)
+  {
+    spdlog::warn("Failed to prepare item spawners for room {}: {}",
+      raceInstance.GetRoomUid(),
+      e.what());
   }
 }
 
@@ -3606,7 +3607,7 @@ RaceDirector::EffectVerdict RaceDirector::ScheduleSkillEffect(
   }
 
   _scheduler.Queue(
-    [this, roomUid = raceInstance._roomUid, targetOid, targetCharacterUid, effectId,
+    [this, roomUid = raceInstance.GetRoomUid(), targetOid, targetCharacterUid, effectId,
       attackRank = magicSlotInfo.attackRank, generation,
       clearMagicTarget = magicSlotInfo.attackRank > 1]()
     {
@@ -3804,12 +3805,10 @@ void RaceDirector::HandleKickUser(
 
   // Only the room master may kick players.
   data::Uid roomMasterUid{data::InvalidUid};
-  _serverInstance.GetRoomSystem().GetRoom(
-    raceInstance._roomUid,
-    [&roomMasterUid](Room& room)
-    {
-      roomMasterUid = room.GetRoomDetails().masterUid;
-    });
+  raceInstance.GetRoom([&roomMasterUid](Room& room)
+  {
+    roomMasterUid = room.GetRoomDetails().masterUid;
+  });
 
   if (clientContext.characterUid != roomMasterUid)
   {
@@ -4053,7 +4052,7 @@ void RaceDirector::HandleTeamGauge(const ClientId clientId)
     constexpr auto SpurStartDelay = std::chrono::milliseconds(1500);
 
     _scheduler.Queue(
-      [this, roomUid = raceInstance._roomUid, &racer, &spurringTeamInfo, maxPoints, teamSize]()
+      [this, roomUid = raceInstance.GetRoomUid(), &racer, &spurringTeamInfo, maxPoints, teamSize]()
       {
         std::scoped_lock lock(_raceInstancesMutex);
         const auto raceInstanceIter = _raceInstances.find(roomUid);;
