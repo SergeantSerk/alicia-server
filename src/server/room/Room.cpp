@@ -22,6 +22,7 @@
 #include <cassert>
 #include <ranges>
 #include <stdexcept>
+#include <functional>
 
 namespace server
 {
@@ -216,7 +217,7 @@ Room::Snapshot Room::GetRoomSnapshot() const
   };
 }
 
-const std::unordered_map<data::Uid, Room::Player>& Room::GetPlayers()
+const std::unordered_map<data::Uid, Room::Player>& Room::GetPlayers() const
 {
   return _players;
 }

@@ -26,12 +26,14 @@
 #include <libserver/network/NetworkDefinitions.hpp>
 
 #include <chrono>
+#include <functional>
 #include <unordered_set>
 
 namespace server
 {
 
 class RaceDirector;
+class Room;
 
 class RaceInstance
 {
@@ -48,6 +50,9 @@ public:
     RaceDirector& raceDirector,
     uint32_t roomUid);
   ~RaceInstance() = default;
+
+  void GetRoom(const std::function<void(Room&)>& consumer);
+  void GetRoom(const std::function<void(const Room&)>& consumer) const;
 
 private:
   friend class RaceDirector;
@@ -73,8 +78,6 @@ private:
   std::chrono::steady_clock::time_point loadingStartTimePoint;
   //! A time point of when the race is actually started (a countdown is finished).
   std::chrono::steady_clock::time_point raceStartTimePoint;
-  //! A room clients.
-  std::unordered_set<network::ClientId> clients;
 
   const uint32_t _roomUid{};
   const RaceDirector& _raceDirector;

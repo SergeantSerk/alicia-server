@@ -84,6 +84,8 @@ public:
   Config::Race& GetConfig();
 
 private:
+  friend class RaceInstance;
+
   std::random_device _randomDevice;
 
   enum class EffectVerdict : uint8_t
@@ -284,6 +286,17 @@ private:
     const protocol::AcCmdCRGameCreateClientItem& command);
 
   void PrepareItemSpawners(RaceInstance& raceInstance);
+
+  template <WritableStruct C>
+  void Broadcast(
+    const RaceInstance& raceInstance,
+    const C& command);
+
+  template <WritableStruct C>
+  void BroadcastExceptCharacterUid(
+    const RaceInstance& raceInstance,
+    const C& command,
+    data::Uid characterUid);
 
   //!
   std::thread test;

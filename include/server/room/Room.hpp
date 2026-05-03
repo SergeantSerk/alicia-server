@@ -119,7 +119,7 @@ public:
 
   [[nodiscard]] Details& GetRoomDetails();
   [[nodiscard]] Snapshot GetRoomSnapshot() const;
-  [[nodiscard]] const std::unordered_map<data::Uid, Player>& GetPlayers();
+  [[nodiscard]] const std::unordered_map<data::Uid, Player>& GetPlayers() const;
 
 private:
   Details _details;

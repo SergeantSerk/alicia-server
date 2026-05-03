@@ -17,6 +17,9 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  **/
 
+#include "server/ServerInstance.hpp"
+
+#include "server/race/RaceDirector.hpp"
 #include "server/race/RaceInstance.hpp"
 
 namespace server
@@ -29,6 +32,20 @@ RaceInstance::RaceInstance(
     _roomUid(roomUid)
 {
 
+}
+
+void RaceInstance::GetRoom(const std::function<void(Room&)>& consumer)
+{
+  _raceDirector._serverInstance.GetRoomSystem().GetRoom(
+    _roomUid,
+    consumer);
+}
+
+void RaceInstance::GetRoom(const std::function<void(const Room&)>& consumer) const
+{
+  _raceDirector._serverInstance.GetRoomSystem().GetRoom(
+    _roomUid,
+    consumer);
 }
 
 } // namespace server
