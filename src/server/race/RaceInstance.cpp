@@ -110,45 +110,45 @@ void RaceInstance::TickLoading()
 
 void RaceInstance::TickRacing()
 {
-    const bool raceTimeoutReached = std::chrono::steady_clock::now() >= stageTimeoutTimePoint;
+  const bool raceTimeoutReached = std::chrono::steady_clock::now() >= stageTimeoutTimePoint;
 
-    const bool isFinishing = std::ranges::any_of(
-      std::views::values(tracker.GetRacers()),
-      [](const tracker::RaceTracker::Racer& racer)
-      {
-        return racer.state == tracker::RaceTracker::Racer::State::Finishing;
-      });
-
-    // If the race is not finishing and the timeout was not reached
-    // do not finish the race.
-    if (not isFinishing && not raceTimeoutReached)
-      return;
-
-    stage = RaceInstance::Stage::Finishing;
-    stageTimeoutTimePoint = std::chrono::steady_clock::now() + std::chrono::seconds(15);
-
-    // If the race timeout was reached notify the clients about the finale.
-    if (not raceTimeoutReached)
-      return;
-    
-    // Broadcast the race final (only to participants).
-    this->GetRoom([this](const server::Room& room)
+  const bool isFinishing = std::ranges::any_of(
+    std::views::values(tracker.GetRacers()),
+    [](const tracker::RaceTracker::Racer& racer)
     {
-      const protocol::AcCmdUserRaceFinalNotify notify{};
-      for (const auto& [characterUid, player] : room.GetPlayers())
-      {
-        const bool isParticipant = tracker.IsRacer(characterUid);
-        if (not isParticipant)
-          continue;
-
-        _raceDirector._commandServer.QueueCommand<decltype(notify)>(
-          player.GetClientId(),
-          [notify]()
-          {
-            return notify;
-          });
-      }
+      return racer.state == tracker::RaceTracker::Racer::State::Finishing;
     });
+
+  // If the race is not finishing and the timeout was not reached
+  // do not finish the race.
+  if (not isFinishing && not raceTimeoutReached)
+    return;
+
+  stage = RaceInstance::Stage::Finishing;
+  stageTimeoutTimePoint = std::chrono::steady_clock::now() + std::chrono::seconds(15);
+
+  // If the race timeout was reached notify the clients about the finale.
+  if (not raceTimeoutReached)
+    return;
+  
+  // Broadcast the race final (only to participants).
+  this->GetRoom([this](const server::Room& room)
+  {
+    const protocol::AcCmdUserRaceFinalNotify notify{};
+    for (const auto& [characterUid, player] : room.GetPlayers())
+    {
+      const bool isParticipant = tracker.IsRacer(characterUid);
+      if (not isParticipant)
+        continue;
+
+      _raceDirector._commandServer.QueueCommand<decltype(notify)>(
+        player.GetClientId(),
+        [notify]()
+        {
+          return notify;
+        });
+    }
+  });
 }
 
 void RaceInstance::TickFinishing()
