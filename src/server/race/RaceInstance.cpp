@@ -24,6 +24,9 @@
 
 #include <libserver/util/Util.hpp>
 
+#include <limits>
+#include <tuple>
+
 namespace server
 {
 
@@ -243,11 +246,27 @@ void RaceInstance::TickFinishing()
     });
   }
 
-  // Sort: winning team first, then by courseTime ascending.
+  // Sort: winning team first, then by result state, then by courseTime ascending.
   std::ranges::sort(raceResult.scores, [winningTeam](const auto& a, const auto& b)
   {
-    auto priority = [winningTeam](const auto& s) {
-      return std::make_pair(s.teamColor != winningTeam ? 1 : 0, s.courseTime);
+    auto priority = [winningTeam](const auto& score)
+    {
+      using ScoreInfo = protocol::AcCmdRCRaceResultNotify::ScoreInfo;
+
+      const uint32_t bitset = static_cast<uint32_t>(score.bitset);
+      const bool isConnected = (bitset & static_cast<uint32_t>(
+        ScoreInfo::Bitset::Connected)) != 0;
+      const bool hasValidTime = score.courseTime < static_cast<uint32_t>(
+        std::numeric_limits<int32_t>::max());
+
+      // Connected racers with no valid finish time are time-over/DNF and should rank
+      // below timed finishers but above disconnected racers.
+      const auto resultRank = not isConnected ? 2 : hasValidTime ? 0 : 1;
+
+      return std::make_tuple(
+        score.teamColor != winningTeam ? 1 : 0,
+        resultRank,
+        score.courseTime);
     };
     return priority(a) < priority(b);
   });
