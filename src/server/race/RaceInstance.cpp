@@ -256,28 +256,62 @@ void RaceInstance::TickFinishing()
   _raceDirector.Broadcast(*this, raceResult);
 
   // Assign room master to the first-place finisher.
-  if (!raceResult.scores.empty())
+  if (not raceResult.scores.empty())
   {
-    const auto newMasterUid = raceResult.scores[0].uid;
+    data::Uid newMasterUid = raceResult.scores[0].uid;
     this->GetRoom(
-      [newMasterUid](Room& room)
+      [&newMasterUid, scores = raceResult.scores](Room& room)
       {
-        auto& details = room.GetRoomDetails();
-        details.masterUid = newMasterUid;
+        // Check if room even has players
+        const bool roomHasPlayers = room.GetPlayerCount() > 0;
+        if (not roomHasPlayers)
+        {
+          // TODO: mark room for delete
+          newMasterUid = data::InvalidUid;
+          return;
+        }
+
+        // Check if room has this player
+        if (room.HasPlayer(newMasterUid))
+        {
+          // New master exists in room
+          auto& details = room.GetRoomDetails();
+          details.masterUid = newMasterUid;
+          return;
+        }
+
+        // New master left, proceed with the scores list
+        // and assign until none found
+        for (const auto& score : scores)
+        {
+          // Check that this next best player is in room
+          if (not room.HasPlayer(score.uid))
+            continue;
+          
+          // Character is in room
+          newMasterUid = score.uid;
+          return;
+        }
+
+        // No characters available for room master (how?)
+        newMasterUid = data::InvalidUid;
       });
 
-    const auto& winnerClientContext = _raceDirector.GetClientContextByCharacterUid(newMasterUid);
-    spdlog::info("Player {} ({}) has won the match and is now master of [Room {}]",
-      winnerClientContext.userName,
-      raceResult.scores[0].name,
-      this->GetRoomUid());
-
-    const protocol::AcCmdCRChangeMasterNotify masterNotify{
-      .masterUid = newMasterUid};
-    _raceDirector.Broadcast(*this, masterNotify);
+    if (newMasterUid != data::InvalidUid)
+    {
+      const auto& winnerClientContext = _raceDirector.GetClientContextByCharacterUid(newMasterUid);
+      spdlog::info("Player {} ({}) has won the match and is now master of [Room {}]",
+        winnerClientContext.userName,
+        raceResult.scores[0].name,
+        this->GetRoomUid());
+      
+      const protocol::AcCmdCRChangeMasterNotify masterNotify{
+        .masterUid = newMasterUid};
+      _raceDirector.Broadcast(*this, masterNotify);
+    }
   }
 
-  // Clear the ready state of oll of the players.
+  // Clear the ready state of all of the players.
   // todo: this should have been reset with the room instance data
   stage = RaceInstance::Stage::Waiting;
   this->GetRoom(
@@ -286,11 +320,12 @@ void RaceInstance::TickFinishing()
       room.SetRoomPlaying(false);
       for (auto& [uid, player] : room.GetPlayers())
       {
+        // Set racer's ready state to false
         room.GetPlayer(uid).SetReady(false);
 
-        const auto characterRecord = _raceDirector._serverInstance.GetDataDirector().GetCharacter(uid);
+        // Update this racer's carrot balance
         protocol::AcCmdRCUpdateGameMoney updateGameMoney{};
-        characterRecord.Immutable(
+        _raceDirector.GetServerInstance().GetDataDirector().GetCharacter(uid).Immutable(
           [&updateGameMoney](const data::Character& character)
           {
             updateGameMoney.carrotBalance = character.carrots();

@@ -109,6 +109,7 @@ public:
   bool AddPlayer(network::ClientId clientId, data::Uid characterUid);
   void RemovePlayer(data::Uid characterUid);
   [[nodiscard]] Player& GetPlayer(data::Uid characterUid);
+  bool HasPlayer(data::Uid characterUid) const;
 
   PreventStartReason CanRoomStart();
   void SetRoomPlaying(bool isPlaying);

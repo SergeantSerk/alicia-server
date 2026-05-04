@@ -141,6 +141,11 @@ Room::Player& Room::GetPlayer(data::Uid characterUid)
   return playerIter->second;
 }
 
+bool Room::HasPlayer(data::Uid characterUid) const
+{
+  return _players.contains(characterUid);
+}
+
 Room::PreventStartReason Room::CanRoomStart()
 {
   uint32_t redTeamCount = 0;
