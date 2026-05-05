@@ -60,6 +60,8 @@ void RaceInstance::GetRoom(const std::function<void(const Room&)>& consumer) con
 
 void RaceInstance::TickLoading()
 {
+  auto& parameters = this->GetParameters();
+
   // Determine whether all racers have started racing.
   const bool allRacersLoaded = std::ranges::all_of(
     std::views::values(tracker.GetRacers()),
@@ -69,7 +71,7 @@ void RaceInstance::TickLoading()
         || racer.state == tracker::RaceTracker::Racer::State::Disconnected;
     });
 
-  const bool loadTimeoutReached = std::chrono::steady_clock::now() >= stageTimeoutTimePoint;
+  const bool loadTimeoutReached = std::chrono::steady_clock::now() >= parameters.stageTimeoutTimePoint;
 
   // If not all the racers have loaded yet and the timeout has not been reached yet
   // do not start the race.
@@ -90,22 +92,22 @@ void RaceInstance::TickLoading()
       racer.state = tracker::RaceTracker::Racer::State::Disconnected;
   }
 
-  const auto mapBlockTemplate = _raceDirector._serverInstance.GetCourseRegistry().GetMapBlockInfo(
-    raceMapBlockId);
+  const auto& mapBlockTemplate = _raceDirector._serverInstance.GetCourseRegistry().GetMapBlockInfo(
+    parameters.raceMapBlockId);
 
   // Switch to the racing stage and set the timeout time point.
-  stage = RaceInstance::Stage::Racing;
-  stageTimeoutTimePoint = std::chrono::steady_clock::now() + std::chrono::seconds(
+  parameters.stage = Parameters::Stage::Racing;
+  parameters.stageTimeoutTimePoint = std::chrono::steady_clock::now() + std::chrono::seconds(
     mapBlockTemplate.timeLimit);
 
   // Set up the race start time point.
   const auto now = std::chrono::steady_clock::now();
-  raceStartTimePoint = now + std::chrono::seconds(
+  parameters.raceStartTimePoint = now + std::chrono::seconds(
     mapBlockTemplate.waitTime);
 
   const protocol::AcCmdUserRaceCountdown raceCountdown{
     .raceStartTimestamp = util::TimePointToRaceTimePoint(
-      raceStartTimePoint)};
+      parameters.raceStartTimePoint)};
 
   // Broadcast the race countdown.
   _raceDirector.Broadcast(*this, raceCountdown);
@@ -113,7 +115,9 @@ void RaceInstance::TickLoading()
 
 void RaceInstance::TickRacing()
 {
-  const bool raceTimeoutReached = std::chrono::steady_clock::now() >= stageTimeoutTimePoint;
+  auto& parameters = this->GetParameters(); 
+
+  const bool raceTimeoutReached = std::chrono::steady_clock::now() >= parameters.stageTimeoutTimePoint;
 
   const bool isFinishing = std::ranges::any_of(
     std::views::values(tracker.GetRacers()),
@@ -127,8 +131,8 @@ void RaceInstance::TickRacing()
   if (not isFinishing && not raceTimeoutReached)
     return;
 
-  stage = RaceInstance::Stage::Finishing;
-  stageTimeoutTimePoint = std::chrono::steady_clock::now() + std::chrono::seconds(15);
+  parameters.stage = Parameters::Stage::Finishing;
+  parameters.stageTimeoutTimePoint = std::chrono::steady_clock::now() + std::chrono::seconds(15);
 
   // If the race timeout was reached notify the clients about the finale.
   if (not raceTimeoutReached)
@@ -156,6 +160,8 @@ void RaceInstance::TickRacing()
 
 void RaceInstance::TickFinishing()
 {
+  auto& parameters = this->GetParameters();
+
   // Determine whether all racers have finished.
   const bool allRacersFinished = std::ranges::all_of(
     std::views::values(tracker.GetRacers()),
@@ -165,7 +171,7 @@ void RaceInstance::TickFinishing()
         || racer.state == tracker::RaceTracker::Racer::State::Disconnected;
     });
 
-  const bool finishTimeoutReached = std::chrono::steady_clock::now() >= stageTimeoutTimePoint;
+  const bool finishTimeoutReached = std::chrono::steady_clock::now() >= parameters.stageTimeoutTimePoint;
 
   // If not all of the racer have finished yet and the timeout has not been reached yet
   // do not finish the race.
@@ -185,7 +191,7 @@ void RaceInstance::TickFinishing()
 
   // Determine winning team (team of the first finisher). Solo/FFA leaves winningTeam as Solo.
   Team winningTeam = Team::Solo;
-  if (raceTeamMode == protocol::TeamMode::Team)
+  if (parameters.raceTeamMode == protocol::TeamMode::Team)
   {
     int32_t best = std::numeric_limits<int32_t>::max();
     for (const auto& [uid, racer] : tracker.GetRacers())
@@ -332,7 +338,7 @@ void RaceInstance::TickFinishing()
 
   // Clear the ready state of all of the players.
   // todo: this should have been reset with the room instance data
-  stage = RaceInstance::Stage::Waiting;
+  parameters.stage = Parameters::Stage::Waiting;
   this->GetRoom(
     [this](Room& room)
     {
@@ -362,24 +368,35 @@ void RaceInstance::TickFinishing()
 
 void RaceInstance::Tick()
 {
-  switch (stage)
+  const auto& parameters = this->GetParameters();
+  switch (parameters.stage)
   {
-    case RaceInstance::Stage::Waiting:
+    case Parameters::Stage::Waiting:
       // Do nothing on waiting stage
       break;
-    case RaceInstance::Stage::Loading:
+    case Parameters::Stage::Loading:
       // Process rooms which are loading
       this->TickLoading();
       break;
-    case RaceInstance::Stage::Racing:
+    case Parameters::Stage::Racing:
       // Process rooms which are racing
       this->TickRacing();
       break;
-    case RaceInstance::Stage::Finishing:
+    case Parameters::Stage::Finishing:
       // Process rooms which are finishing
       this->TickFinishing();
       break;
   }
+}
+
+RaceInstance::Parameters& RaceInstance::GetParameters()
+{
+  return _parameters;
+}
+
+const RaceInstance::Parameters& RaceInstance::GetParameters() const
+{
+  return _parameters;
 }
 
 } // namespace server

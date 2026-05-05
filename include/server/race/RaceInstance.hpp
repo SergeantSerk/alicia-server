@@ -38,12 +38,32 @@ class Room;
 class RaceInstance
 {
 public:
-  enum class Stage
+  struct Parameters
   {
-    Waiting,
-    Loading,
-    Racing,
-    Finishing,
+    //! A game mode of the race.
+    protocol::GameMode raceGameMode{};
+    //! A team mode of the race.
+    protocol::TeamMode raceTeamMode{};
+    //! A map block ID of the race.
+    uint16_t raceMapBlockId{};
+    //! A mission ID of the race.
+    uint16_t raceMissionId{};
+
+    //! The current stage of the race.
+    enum class Stage
+    {
+      Waiting,
+      Loading,
+      Racing,
+      Finishing,
+    } stage{Stage::Waiting};
+
+    //! Represents when a room started loading.
+    std::chrono::steady_clock::time_point loadingStartTimePoint{};
+    //! A time point of when the race is actually started (a countdown is finished).
+    std::chrono::steady_clock::time_point raceStartTimePoint{};
+    //! A time point of when the stage timeout occurs.
+    std::chrono::steady_clock::time_point stageTimeoutTimePoint{};
   };
 
   explicit RaceInstance(
@@ -52,6 +72,8 @@ public:
   ~RaceInstance() = default;
 
   uint32_t GetRoomUid();
+  Parameters& GetParameters();
+  const Parameters& GetParameters() const;
 
   void GetRoom(const std::function<void(Room&)>& consumer);
   void GetRoom(const std::function<void(const Room&)>& consumer) const;
@@ -65,30 +87,12 @@ private:
   void TickRacing();
   void TickFinishing();
 
-  //! A stage of the room.
-  Stage stage{Stage::Waiting};
-  //! A time point of when the stage timeout occurs.
-  std::chrono::steady_clock::time_point stageTimeoutTimePoint;
-
+  //! The race parameters.
+  Parameters _parameters;
   //! A race object tracker.
   tracker::RaceTracker tracker;
 
-  //! A game mode of the race.
-  protocol::GameMode raceGameMode;
-  //! A team mode of the race.
-  protocol::TeamMode raceTeamMode;
-  //! A map block ID of the race.
-  uint16_t raceMapBlockId{};
-  //! A mission ID of the race.
-  uint16_t raceMissionId{};
-
-  //! Represents when a room started loading.
-  std::chrono::steady_clock::time_point loadingStartTimePoint;
-  //! A time point of when the race is actually started (a countdown is finished).
-  std::chrono::steady_clock::time_point raceStartTimePoint;
-
   RaceDirector& _raceDirector;
-
   const uint32_t _roomUid{};
 };
 
