@@ -288,6 +288,10 @@ private:
 
   void PrepareItemSpawners(RaceInstance& raceInstance);
 
+  void TickMagicGauge(
+    RaceInstance& raceInstance,
+    const registry::Course::GameModeInfo& gameModeInfo);
+
   template <WritableStruct C>
   void Broadcast(
     const RaceInstance& raceInstance,

@@ -24,6 +24,8 @@
 
 #include <libserver/data/DataDefinitions.hpp>
 #include <libserver/network/NetworkDefinitions.hpp>
+#include <libserver/registry/CourseRegistry.hpp>
+#include <libserver/util/Scheduler.hpp>
 
 #include <chrono>
 #include <functional>
@@ -58,6 +60,8 @@ public:
 
   void Tick();
 
+  Scheduler& GetScheduler();
+
 private:
   friend class RaceDirector;
 
@@ -87,6 +91,9 @@ private:
   //! A time point of when the race is actually started (a countdown is finished).
   std::chrono::steady_clock::time_point raceStartTimePoint;
 
+  std::optional<Scheduler::JobHandle> _magicTickerHandle;
+
+  Scheduler _scheduler;
   RaceDirector& _raceDirector;
 
   const uint32_t _roomUid{};

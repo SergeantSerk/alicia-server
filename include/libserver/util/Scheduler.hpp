@@ -32,39 +32,61 @@ namespace server
 class Scheduler final
 {
 public:
-  //! A task to perform.
-  using Task = std::function<void()>;
   //! An alias for the standard steady-clock.
   using Clock = std::chrono::steady_clock;
+  //! A task to perform.
+  using Task = std::function<void()>;
 
-  Scheduler();
-
-  //! Tick the scheduler.
-  void Tick();
-
-  //! Queue a task to be executed in the next tick.
-  //! @param task Task to queue execution of.
-  //! @param when A time point of when to execute the task. Defaults to immediate execution.
-  void Queue(
-    const Task& task,
-    Clock::time_point when = Clock::now());
-
-protected:
   //! A job.
   struct Job
   {
     //! A time point of when the job should execute.
-    Clock::time_point when{};
+    //! A value of `Clock::time_point::min()` means immediate execution.
+    Clock::time_point when{Clock::time_point::min()};
+    //! A repeating period of this task.
+    //! A value of `Clock::duration::zero()` means the job does not repeat.
+    Clock::duration period{Clock::duration::zero()};
     //! A task the job has to execute.
     Task task{};
   };
 
+  //! A list of jobs.
+  using Jobs = std::list<Job>;
+  //! A job handle.
+  using JobHandle = Jobs::const_iterator;
+
+  //! Default constructor.
+  Scheduler() noexcept;
+
+  //! Tick the scheduler.
+  void Tick();
+
+  //! Queue a task to be executed.
+  //! @param task Task to queue execution of.
+  //! @param when A time point of when to execute the task. Defaults to immediate execution.
+  //! @return A job handle.
+  [[maybe_unused]] JobHandle Queue(
+    const Task& task,
+    Clock::time_point when = Clock::now());
+
+  //! Queue a repeating task to be executed.
+  //! @param task Task to queue execution of.
+  //! @param period A period of the repeating task.
+  //! @return A job handle.
+  [[nodiscard]] JobHandle QueueRepeating(
+    const Task& task,
+    Clock::duration period);
+
+  //! Deque a queued task.
+  void Deque(JobHandle handle);
+
+private:
   //! A mutex to the job list.
   std::mutex _jobsMutex;
   //! A job list.
-  std::list<Job> _jobs;
-  //! An iterator to the job to execute in the next tick cycle.
-  decltype(_jobs)::const_iterator _jobIterator;
+  Jobs _jobs;
+  //! A handle to the job to execute in the next tick cycle.
+  Jobs::iterator _jobHandle;
 };
 
 } // namespace server

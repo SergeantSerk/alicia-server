@@ -22,61 +22,96 @@
 namespace server
 {
 
-Scheduler::Scheduler()
+Scheduler::Scheduler() noexcept
 {
-  _jobIterator = _jobs.cend();
+  _jobHandle = _jobs.end();
 }
 
 void Scheduler::Tick()
 {
-  // Make sure there is jobs to execute.
-  if (_jobs.empty())
-    return;
-
-  // If the job iterator is at the end cycle it back to the front,
-  // since the job list is not empty.
-  if (_jobIterator == _jobs.cend())
   {
-    _jobIterator = _jobs.begin();
+    std::scoped_lock lock(_jobsMutex);
+
+    // Make sure there is jobs to execute.
+    if (_jobs.empty())
+      return;
+
+    // If the job iterator is at the end cycle it back to the front,
+    // since the job list is not empty.
+    if (_jobHandle == _jobs.cend())
+    {
+      _jobHandle = _jobs.begin();
+    }
   }
 
   // Iterate over the jobs until you find one that can be executed,
   // execute it and remove it from the job list.
   while (true)
   {
-    const auto& job = *_jobIterator;
+    auto& job = *_jobHandle;
     if (Clock::now() >= job.when)
     {
       try
       {
         job.task();
-        _jobIterator = _jobs.erase(_jobIterator);
+
+        // If the job has a period queue it for later.
+        if (job.period > Clock::duration::zero())
+        {
+          job.when = Clock::now() + job.period;
+        }
+        else
+        {
+          std::scoped_lock lock(_jobsMutex);
+          _jobHandle = _jobs.erase(_jobHandle);
+        }
+
       }
       catch (const std::exception& x)
       {
         // Executing task for job threw an error, erase the job
-        // and move onto the next one
-        _jobIterator = _jobs.erase(_jobIterator);
+        // and move onto the next one on the next tick.
+        std::scoped_lock lock(_jobsMutex);
+        _jobHandle = _jobs.erase(_jobHandle);
+
         throw x;
       }
 
       break;
     }
 
-    if (++_jobIterator == _jobs.cend())
-      break;
+    {
+      std::scoped_lock lock(_jobsMutex);
+      if (++_jobHandle == _jobs.cend())
+        break;
+    }
   }
 }
 
-void Scheduler::Queue(
+Scheduler::JobHandle Scheduler::Queue(
   const Task& task,
   const Clock::time_point when)
 {
   std::scoped_lock lock(_jobsMutex);
-  _jobs.emplace_back(Job{
+  return _jobs.emplace(_jobs.end(), Job{
     .when = when,
     .task = task});
 }
 
+Scheduler::JobHandle Scheduler::QueueRepeating(
+  const Task& task,
+  const Clock::duration period)
+{
+  std::scoped_lock lock(_jobsMutex);
+  return _jobs.emplace(_jobs.end(), Job{
+    .period = period,
+    .task = task,});
+}
+
+void Scheduler::Deque(const JobHandle handle)
+{
+  std::scoped_lock lock(_jobsMutex);
+  _jobs.erase(handle);
+}
 
 } // namespace server

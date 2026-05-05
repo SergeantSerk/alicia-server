@@ -156,6 +156,9 @@ void RaceInstance::TickRacing()
 
 void RaceInstance::TickFinishing()
 {
+  if (_magicTickerHandle.has_value())
+    GetScheduler().Deque(_magicTickerHandle.value());
+
   // Determine whether all racers have finished.
   const bool allRacersFinished = std::ranges::all_of(
     std::views::values(tracker.GetRacers()),
@@ -380,6 +383,13 @@ void RaceInstance::Tick()
       this->TickFinishing();
       break;
   }
+
+  this->GetScheduler().Tick();
+}
+
+Scheduler& RaceInstance::GetScheduler()
+{
+  return _scheduler;
 }
 
 } // namespace server
