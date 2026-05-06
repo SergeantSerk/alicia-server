@@ -74,6 +74,8 @@ public:
   uint32_t GetRoomUid();
   Parameters& GetParameters();
   const Parameters& GetParameters() const;
+  tracker::RaceTracker& GetTracker();
+  const tracker::RaceTracker& GetTracker() const;
 
   void GetRoom(const std::function<void(Room&)>& consumer);
   void GetRoom(const std::function<void(const Room&)>& consumer) const;
@@ -81,8 +83,6 @@ public:
   void Tick();
 
 private:
-  friend class RaceDirector;
-
   void TickLoading();
   void TickRacing();
   void TickFinishing();
@@ -90,7 +90,7 @@ private:
   //! The race parameters.
   Parameters _parameters;
   //! A race object tracker.
-  tracker::RaceTracker tracker;
+  tracker::RaceTracker _tracker;
 
   RaceDirector& _raceDirector;
   const uint32_t _roomUid{};

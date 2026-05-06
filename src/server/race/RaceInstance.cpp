@@ -64,7 +64,7 @@ void RaceInstance::TickLoading()
 
   // Determine whether all racers have started racing.
   const bool allRacersLoaded = std::ranges::all_of(
-    std::views::values(tracker.GetRacers()),
+    std::views::values(_tracker.GetRacers()),
     [](const tracker::RaceTracker::Racer& racer)
     {
       return racer.state == tracker::RaceTracker::Racer::State::Racing
@@ -84,7 +84,7 @@ void RaceInstance::TickLoading()
       this->GetRoomUid());
   }
 
-  for (auto& racer : tracker.GetRacers() | std::views::values)
+  for (auto& racer : _tracker.GetRacers() | std::views::values)
   {
     // todo: handle the players that did not load in to the race.
     // for now just consider them disconnected
@@ -120,7 +120,7 @@ void RaceInstance::TickRacing()
   const bool raceTimeoutReached = std::chrono::steady_clock::now() >= parameters.stageTimeoutTimePoint;
 
   const bool isFinishing = std::ranges::any_of(
-    std::views::values(tracker.GetRacers()),
+    std::views::values(_tracker.GetRacers()),
     [](const tracker::RaceTracker::Racer& racer)
     {
       return racer.state == tracker::RaceTracker::Racer::State::Finishing;
@@ -144,7 +144,7 @@ void RaceInstance::TickRacing()
     const protocol::AcCmdUserRaceFinalNotify notify{};
     for (const auto& [characterUid, player] : room.GetPlayers())
     {
-      const bool isParticipant = tracker.IsRacer(characterUid);
+      const bool isParticipant = _tracker.IsRacer(characterUid);
       if (not isParticipant)
         continue;
 
@@ -164,7 +164,7 @@ void RaceInstance::TickFinishing()
 
   // Determine whether all racers have finished.
   const bool allRacersFinished = std::ranges::all_of(
-    std::views::values(tracker.GetRacers()),
+    std::views::values(_tracker.GetRacers()),
     [](const tracker::RaceTracker::Racer& racer)
     {
       return racer.state == tracker::RaceTracker::Racer::State::Finishing
@@ -194,7 +194,7 @@ void RaceInstance::TickFinishing()
   if (parameters.raceTeamMode == protocol::TeamMode::Team)
   {
     int32_t best = std::numeric_limits<int32_t>::max();
-    for (const auto& [uid, racer] : tracker.GetRacers())
+    for (const auto& [uid, racer] : _tracker.GetRacers())
     {
       if (racer.state != State::Disconnected && racer.courseTime != -1 && racer.courseTime < best)
       {
@@ -205,7 +205,7 @@ void RaceInstance::TickFinishing()
   }
 
   // Build the score board.
-  for (const auto& [characterUid, racer] : tracker.GetRacers())
+  for (const auto& [characterUid, racer] : _tracker.GetRacers())
   {
     auto& score = raceResult.scores.emplace_back();
 
@@ -397,6 +397,16 @@ RaceInstance::Parameters& RaceInstance::GetParameters()
 const RaceInstance::Parameters& RaceInstance::GetParameters() const
 {
   return _parameters;
+}
+
+tracker::RaceTracker& RaceInstance::GetTracker()
+{
+  return _tracker;
+}
+
+const tracker::RaceTracker& RaceInstance::GetTracker() const
+{
+  return _tracker;
 }
 
 } // namespace server

@@ -584,7 +584,7 @@ RaceInstance& RaceDirector::GetRaceInstance(
 
   // Check if the character is a racer
   // Protects against characters waiting in the waiting room but emitting racing commands
-  if (not raceInstance.tracker.IsRacer(clientContext.characterUid))
+  if (not raceInstance.GetTracker().IsRacer(clientContext.characterUid))
     throw std::runtime_error(
       std::format("Tried to get race instance '{}' but character '{}' is not a racer",
         clientContext.roomUid,
@@ -1058,9 +1058,9 @@ void RaceDirector::HandleLeaveRoom(ClientId clientId)
         clientContext.roomUid);
     });
 
-  if (raceInstance.tracker.IsRacer(clientContext.characterUid))
+  if (raceInstance.GetTracker().IsRacer(clientContext.characterUid))
   {
-    auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
+    auto& racer = raceInstance.GetTracker().GetRacer(clientContext.characterUid);
     racer.state = tracker::RaceTracker::Racer::State::Disconnected;
 
     // Notify all the other racers that the client has disconnected
@@ -1117,7 +1117,7 @@ void RaceDirector::HandleLeaveRoom(ClientId clientId)
     }
     else
     {
-      for (const auto& characterUid : raceInstance.tracker.GetRacers() | std::views::keys)
+      for (const auto& characterUid : raceInstance.GetTracker().GetRacers() | std::views::keys)
       {
         nextMasterUid = characterUid;
         break;
@@ -1228,7 +1228,7 @@ void RaceDirector::PrepareItemSpawners(RaceInstance& raceInstance)
         if (mapDeckItemInstance.deckId != usedDeckItemId)
           continue;
 
-        auto& item = raceInstance.tracker.AddItem();
+        auto& item = raceInstance.GetTracker().AddItem();
         item.itemTypes = deckItemInfo.itemTypes;
         
         // Randomly pick an initial type
@@ -1379,7 +1379,7 @@ void RaceDirector::HandleStartRace(
   this->Broadcast(raceInstance, roomCountdown);
 
   // Clear the tracker before the race.
-  raceInstance.tracker.Clear();
+  raceInstance.GetTracker().Clear();
 
   // Add the items.
   PrepareItemSpawners(raceInstance);
@@ -1392,7 +1392,7 @@ void RaceDirector::HandleStartRace(
       // todo: observers
       for (const auto& [characterUid, roomPlayer] : room.GetPlayers())
       {
-        auto& racer = raceInstance.tracker.AddRacer(characterUid);
+        auto& racer = raceInstance.GetTracker().AddRacer(characterUid);
         racer.state = tracker::RaceTracker::Racer::State::Loading;
         switch (roomPlayer.GetTeam())
         {
@@ -1440,7 +1440,7 @@ void RaceDirector::HandleStartRace(
         .raceMissionId = parameters.raceMissionId,};
 
       // Build the racers.
-      for (const auto& [characterUid, racer] : raceInstance.tracker.GetRacers())
+      for (const auto& [characterUid, racer] : raceInstance.GetTracker().GetRacers())
       {
         if (racer.state == tracker::RaceTracker::Racer::State::Disconnected)
           continue;
@@ -1485,10 +1485,10 @@ void RaceDirector::HandleStartRace(
         {
           for (const auto& [characterUid, player] : room.GetPlayers())
           {
-            if (not raceInstance.tracker.IsRacer(characterUid))
+            if (not raceInstance.GetTracker().IsRacer(characterUid))
               continue;
 
-            auto& racer = raceInstance.tracker.GetRacer(characterUid);
+            auto& racer = raceInstance.GetTracker().GetRacer(characterUid);
             notify.hostOid = racer.oid;
 
             // Skills only apply for speed single or magic single
@@ -1598,7 +1598,7 @@ void RaceDirector::HandleLoadingComplete(
   auto& raceInstance = GetRaceInstance(clientContext);
   const auto& parameters = raceInstance.GetParameters();
 
-  auto& racer = raceInstance.tracker.GetRacer(
+  auto& racer = raceInstance.GetTracker().GetRacer(
     clientContext.characterUid);
 
   // Switch the racer to the racing state.
@@ -1697,7 +1697,7 @@ void RaceDirector::HandleUserRaceFinal(
 
   // todo: sanity check for course time
   // todo: address npc racers and update their states
-  auto& racer = raceInstance.tracker.GetRacer(
+  auto& racer = raceInstance.GetTracker().GetRacer(
     clientContext.characterUid);
 
   racer.state = tracker::RaceTracker::Racer::State::Finishing;
@@ -1756,7 +1756,7 @@ void RaceDirector::HandleP2PRaceResult(
   // auto& raceInstance = GetRaceInstance(clientContext);
 
   // protocol::AcCmdGameRaceP2PResult result{};
-  // for (const auto & [uid, racer] : raceInstance.tracker.GetRacers())
+  // for (const auto & [uid, racer] : raceInstance.GetTracker().GetRacers())
   // {
   //   auto& protocolRacer = result.member1.emplace_back();
   //   protocolRacer.oid = racer.oid;
@@ -1791,9 +1791,9 @@ void RaceDirector::HandleAwardStart(
       {
         // Whether the client is a participating racer that did not disconnect.
         bool isParticipatingRacer = false;
-        if (raceInstance.tracker.IsRacer(characterUid))
+        if (raceInstance.GetTracker().IsRacer(characterUid))
         {
-          auto& racer = raceInstance.tracker.GetRacer(
+          auto& racer = raceInstance.GetTracker().GetRacer(
             characterUid);
           // todo: handle player reconnect instead of ignoring them here
           isParticipatingRacer = racer.state != tracker::RaceTracker::Racer::State::Disconnected;
@@ -1830,9 +1830,9 @@ void RaceDirector::HandleAwardEnd(
   //
   //   // Whether the client is a participating racer that did not disconnect.
   //   bool isParticipatingRacer = false;
-  //   if (raceInstance.tracker.IsRacer(roomClientContext.characterUid))
+  //   if (raceInstance.GetTracker().IsRacer(roomClientContext.characterUid))
   //   {
-  //     auto& racer = raceInstance.tracker.GetRacer(
+  //     auto& racer = raceInstance.GetTracker().GetRacer(
   //       roomClientContext.characterUid);
   //     isParticipatingRacer = racer.state != tracker::RaceTracker::Racer::State::Disconnected;
   //   }
@@ -1859,7 +1859,7 @@ void RaceDirector::HandleStarPointGet(
   auto& raceInstance = GetRaceInstance(clientContext);
   const auto& parameters = raceInstance.GetParameters();
 
-  auto& racer = raceInstance.tracker.GetRacer(
+  auto& racer = raceInstance.GetTracker().GetRacer(
     clientContext.characterUid);
 
   // TODO: Revise this in NPC races
@@ -1907,7 +1907,7 @@ void RaceDirector::HandleRequestSpur(
   auto& raceInstance = GetRaceInstance(clientContext);
   const auto& parameters = raceInstance.GetParameters();
 
-  auto& racer = raceInstance.tracker.GetRacer(
+  auto& racer = raceInstance.GetTracker().GetRacer(
     clientContext.characterUid);
 
   // TODO: Revise this in NPC races
@@ -1962,7 +1962,7 @@ void RaceDirector::HandleHurdleClearResult(
   auto& raceInstance = GetRaceInstance(clientContext);
   const auto& parameters = raceInstance.GetParameters();
 
-  auto& racer = raceInstance.tracker.GetRacer(
+  auto& racer = raceInstance.GetTracker().GetRacer(
     clientContext.characterUid);
 
   // TODO: Revise this in NPC races
@@ -2100,7 +2100,7 @@ void RaceDirector::HandleStartingRate(
   auto& raceInstance = GetRaceInstance(clientContext);
   const auto& parameters = raceInstance.GetParameters();
 
-  auto& racer = raceInstance.tracker.GetRacer(
+  auto& racer = raceInstance.GetTracker().GetRacer(
     clientContext.characterUid);
 
   // TODO: Revise this in NPC races
@@ -2143,7 +2143,7 @@ void RaceDirector::HandleRaceUserPos(
   auto& raceInstance = GetRaceInstance(clientContext);
   const auto& parameters = raceInstance.GetParameters();
 
-  auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
+  auto& racer = raceInstance.GetTracker().GetRacer(clientContext.characterUid);
 
   // TODO: Revise this in NPC races
   if (command.oid != racer.oid)
@@ -2189,7 +2189,7 @@ void RaceDirector::HandleRaceUserPos(
     _commandServer.QueueCommand<decltype(spawn)>(clientId, [spawn]() { return spawn; });
   };
 
-  for (const auto& [itemOid, item] : raceInstance.tracker.GetItems())
+  for (const auto& [itemOid, item] : raceInstance.GetTracker().GetItems())
   {
     if (std::chrono::steady_clock::now() < item.respawnTimePoint)
       continue;
@@ -2465,7 +2465,7 @@ void RaceDirector::HandleUserRaceActivateInteractiveEvent(
   auto& raceInstance = GetRaceInstance(clientContext);
 
   // Get the sender's OID from the room tracker
-  auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
+  auto& racer = raceInstance.GetTracker().GetRacer(clientContext.characterUid);
 
   protocol::AcCmdUserRaceActivateInteractiveEvent notify{
     .member1 = command.member1,
@@ -2485,10 +2485,10 @@ void RaceDirector::HandleUserRaceActivateEvent(
 
   std::scoped_lock lock(_raceInstancesMutex);
   auto& raceInstance = GetRaceInstance(clientContext);
-  const auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
+  const auto& racer = raceInstance.GetTracker().GetRacer(clientContext.characterUid);
 
   // Check if event is throttled, or add event if it is a new one
-  if (raceInstance.tracker.IsEventThrottled(command.eventId))
+  if (raceInstance.GetTracker().IsEventThrottled(command.eventId))
   {
     // Event throttled
     return;
@@ -2517,10 +2517,10 @@ void RaceDirector::HandleUserRaceDeactivateEvent(
 
   std::scoped_lock lock(_raceInstancesMutex);
   auto& raceInstance = GetRaceInstance(clientContext);
-  const auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
+  const auto& racer = raceInstance.GetTracker().GetRacer(clientContext.characterUid);
 
   // Check if event is throttled, or add event if it is a new one
-  if (raceInstance.tracker.IsEventThrottled(command.eventId))
+  if (raceInstance.GetTracker().IsEventThrottled(command.eventId))
   {
     // Event throttled
     return;
@@ -2541,7 +2541,7 @@ void RaceDirector::HandleRequestMagicItem(
 
   std::scoped_lock lock(_raceInstancesMutex);
   auto& raceInstance = GetRaceInstance(clientContext);
-  auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
+  auto& racer = raceInstance.GetTracker().GetRacer(clientContext.characterUid);
 
   // TODO: Revise this on NPC races
   if (command.characterOid != racer.oid)
@@ -2598,7 +2598,7 @@ void RaceDirector::HandleUseMagicItem(
 
   std::scoped_lock lock(_raceInstancesMutex);
   auto& raceInstance = GetRaceInstance(clientContext);
-  auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
+  auto& racer = raceInstance.GetTracker().GetRacer(clientContext.characterUid);
 
   // TODO: Revise this in NPC races
   if (command.characterOid != racer.oid)
@@ -2606,7 +2606,7 @@ void RaceDirector::HandleUseMagicItem(
     spdlog::warn("Client tried to perform action on behalf of different racer");
     return;
   }
-  const uint16_t effectInstanceId = raceInstance.tracker.GetNextEffectInstanceIdAndIncrementBy(1);
+  const uint16_t effectInstanceId = raceInstance.GetTracker().GetNextEffectInstanceIdAndIncrementBy(1);
 
   auto targetList = command.targetList;
 
@@ -2634,7 +2634,7 @@ void RaceDirector::HandleUseMagicItem(
   {
     if (!targetList.empty())
     {
-      auto& racers = raceInstance.tracker.GetRacers();
+      auto& racers = raceInstance.GetTracker().GetRacers();
       const auto targetOid = targetList[0];
       const auto targetIter = std::ranges::find_if(
         racers,
@@ -2707,7 +2707,7 @@ void RaceDirector::HandleUseMagicItem(
       if (obstacleInstanceCount > 1)
       {
         // If its a crit ice wall, add the 2 missing InstanceIds to the tracker so that they can be used for the breakdown and expiration of the effect
-        raceInstance.tracker.GetNextEffectInstanceIdAndIncrementBy(obstacleInstanceCount - 1);
+        raceInstance.GetTracker().GetNextEffectInstanceIdAndIncrementBy(obstacleInstanceCount - 1);
       }
       auto magicExpire = protocol::AcCmdRCMagicExpire{
         .magicType = magicSlotInfo.type,
@@ -2731,7 +2731,7 @@ void RaceDirector::HandleUseMagicItem(
     case 24: 
     case 25:
     {
-      for (auto& otherRacer : raceInstance.tracker.GetRacers() | std::views::values)
+      for (auto& otherRacer : raceInstance.GetTracker().GetRacers() | std::views::values)
       {
         if (racer.oid == otherRacer.oid
         || (racer.team != tracker::RaceTracker::Racer::Team::Solo && racer.team == otherRacer.team))
@@ -2754,13 +2754,13 @@ void RaceDirector::HandleUserRaceItemGet(
 
   std::scoped_lock lock(_raceInstancesMutex);
   auto& raceInstance = GetRaceInstance(clientContext);
-  auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
+  auto& racer = raceInstance.GetTracker().GetRacer(clientContext.characterUid);
 
   // Check event items first (eggs, etc.)
-  const auto eventItemOid = raceInstance.tracker.FindEventItem(clientContext.characterUid, command.itemId);
+  const auto eventItemOid = raceInstance.GetTracker().FindEventItem(clientContext.characterUid, command.itemId);
   if (eventItemOid != tracker::InvalidEntityOid)
   {
-    auto& eventItem = raceInstance.tracker.GetEventItem(clientContext.characterUid, eventItemOid);
+    auto& eventItem = raceInstance.GetTracker().GetEventItem(clientContext.characterUid, eventItemOid);
     const auto eggInfo = _serverInstance.GetPetRegistry().GetEggInfoByDeckId(eventItem.itemType);
     auto itemUid = data::InvalidUid;
     const auto characterRecord = _serverInstance.GetDataDirector().GetCharacter(
@@ -2785,12 +2785,12 @@ void RaceDirector::HandleUserRaceItemGet(
       .itemType = eventItem.itemType};
     this->Broadcast(raceInstance, itemGet);
 
-    raceInstance.tracker.RemoveEventItem(clientContext.characterUid, command.itemId);
+    raceInstance.GetTracker().RemoveEventItem(clientContext.characterUid, command.itemId);
     racer.trackedItems.erase(command.itemId);
     return;
   }
 
-  auto& items = raceInstance.tracker.GetItems();
+  auto& items = raceInstance.GetTracker().GetItems();
   const auto itemIter = items.find(command.itemId);
   if (itemIter == items.end())
   {
@@ -2924,7 +2924,7 @@ void RaceDirector::HandleUserRaceItemGet(
   this->Broadcast(raceInstance, get);
 
   // Erase the item from item instances of each client.
-  for (auto& raceRacer : raceInstance.tracker.GetRacers() | std::views::values)
+  for (auto& raceRacer : raceInstance.GetTracker().GetRacers() | std::views::values)
   {
     raceRacer.trackedItems.erase(item.oid);
   }
@@ -2939,7 +2939,7 @@ void RaceDirector::HandleStartMagicTarget(
 
   std::scoped_lock lock(_raceInstancesMutex);
   auto& raceInstance = GetRaceInstance(clientContext);
-  auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
+  auto& racer = raceInstance.GetTracker().GetRacer(clientContext.characterUid);
 
   // TODO: Revise this in NPC races
   if (command.casterOid != racer.oid)
@@ -2948,7 +2948,7 @@ void RaceDirector::HandleStartMagicTarget(
     return;
   }
 
-  auto& racers = raceInstance.tracker.GetRacers();
+  auto& racers = raceInstance.GetTracker().GetRacers();
   const auto targetIter = std::ranges::find_if(
     racers,
     [&command](const auto& entry)
@@ -2975,7 +2975,7 @@ void RaceDirector::HandleChangeMagicTarget(
 
   std::scoped_lock lock(_raceInstancesMutex);
   auto& raceInstance = GetRaceInstance(clientContext);
-  auto& racer = raceInstance.tracker.GetRacer(clientContext.characterUid);
+  auto& racer = raceInstance.GetTracker().GetRacer(clientContext.characterUid);
 
   if (command.targetOid!= racer.oid)
   {
@@ -2990,7 +2990,7 @@ void RaceDirector::HandleChangeMagicTarget(
   }
 
   // Find the target racer based on targetOid2
-  auto& racers = raceInstance.tracker.GetRacers();
+  auto& racers = raceInstance.GetTracker().GetRacers();
   const auto targetIter = std::ranges::find_if(
     racers,
     [&command](const auto& entry)
@@ -3073,7 +3073,7 @@ void RaceDirector::HandleActivateSkillEffect(
   std::scoped_lock lock(_raceInstancesMutex);
   auto& raceInstance = GetRaceInstance(clientContext);
 
-  auto& targetRacer = raceInstance.tracker.GetRacer(clientContext.characterUid);
+  auto& targetRacer = raceInstance.GetTracker().GetRacer(clientContext.characterUid);
 
   auto magicSlotInfo = GetServerInstance().GetMagicRegistry().GetSlotInfoByEffectId(command.effectId);
   // If the target has a DarkFire effect active and the magic crits by dark fire, use the critical type instead
@@ -3222,7 +3222,7 @@ RaceDirector::EffectVerdict RaceDirector::ScheduleSkillEffect(
   const registry::Magic::SlotInfo& magicSlotInfo,
   const uint16_t effectInstanceId)
 {
-  auto& racers = raceInstance.tracker.GetRacers();
+  auto& racers = raceInstance.GetTracker().GetRacers();
   const auto targetRacerIter = std::ranges::find_if(
     racers, [targetOid](const auto& pair) { return pair.second.oid == targetOid; });
 
@@ -3339,10 +3339,10 @@ RaceDirector::EffectVerdict RaceDirector::ScheduleSkillEffect(
 
       auto& raceInstance = raceInstanceIter->second;
 
-      if (!raceInstance.tracker.IsRacer(targetCharacterUid))
+      if (!raceInstance.GetTracker().IsRacer(targetCharacterUid))
         return;
 
-      auto& racer = raceInstance.tracker.GetRacer(targetCharacterUid);
+      auto& racer = raceInstance.GetTracker().GetRacer(targetCharacterUid);
 
       // If the generation has changed, this effect was extended — skip the removal
       if (racer.effectGenerations[effectId] != generation)
@@ -3643,11 +3643,11 @@ void RaceDirector::HandleTeamGauge(const ClientId clientId)
   if (not isTeamMode or not isSpeedGameMode)
     return;
 
-  auto& racer = raceInstance.tracker.GetRacer(
+  auto& racer = raceInstance.GetTracker().GetRacer(
     clientContext.characterUid);
 
-  auto& blueTeam = raceInstance.tracker.blueTeam;
-  auto& redTeam = raceInstance.tracker.redTeam;
+  auto& blueTeam = raceInstance.GetTracker().blueTeam;
+  auto& redTeam = raceInstance.GetTracker().redTeam;
   auto& team = 
     racer.team == tracker::RaceTracker::Racer::Team::Red ? redTeam :
     racer.team == tracker::RaceTracker::Racer::Team::Blue ? blueTeam :
@@ -3679,7 +3679,7 @@ void RaceDirector::HandleTeamGauge(const ClientId clientId)
   // Use the max of the two team sizes to handle potentially unbalanced teams.
   uint32_t redTeamCount = 0;
   uint32_t blueTeamCount = 0;
-  for (const auto& _ : raceInstance.tracker.GetRacers() | std::views::values)
+  for (const auto& _ : raceInstance.GetTracker().GetRacers() | std::views::values)
   {
     if (_.team == tracker::RaceTracker::Racer::Team::Red)
       ++redTeamCount;
@@ -3919,7 +3919,7 @@ void RaceDirector::HandleGameCreateClientItem(
     return;
 
   // Add to per-racer event item tracker regardless of ownership.
-  auto& item = raceInstance.tracker.AddEventItem(clientContext.characterUid);
+  auto& item = raceInstance.GetTracker().AddEventItem(clientContext.characterUid);
   item.position = command.position;
   item.itemType = selectedEgg.deckItemId;
 }
