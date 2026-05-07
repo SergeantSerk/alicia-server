@@ -123,7 +123,9 @@ bool Room::AddPlayer(network::ClientId clientId, data::Uid characterUid)
   }
 
   _queuedPlayers.erase(characterUid);
-  _players.try_emplace(characterUid, player);
+  const auto& [iter, inserted] = _players.try_emplace(characterUid, player);
+  if (not inserted)
+    throw std::runtime_error("Player already exists");
 
   return true;
 }
