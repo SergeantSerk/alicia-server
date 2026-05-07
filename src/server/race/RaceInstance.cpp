@@ -284,23 +284,25 @@ void RaceInstance::TickFinishing()
   if (not raceResult.scores.empty())
   {
     data::Uid newMasterUid = raceResult.scores[0].uid;
+    std::string newMasterName = raceResult.scores[0].name;
     this->GetRoom(
-      [&newMasterUid, scores = raceResult.scores](Room& room)
+      [&newMasterUid, &newMasterName, scores = raceResult.scores](Room& room)
       {
         // Check if room even has players
-        const bool roomHasPlayers = room.GetPlayerCount() > 0;
-        if (not roomHasPlayers)
+        if (room.GetPlayerCount() < 1)
         {
           // TODO: mark room for delete
           newMasterUid = data::InvalidUid;
           return;
         }
 
+        // Get room details to update
+        auto& details = room.GetRoomDetails();
+
         // Check if room has this player
         if (room.HasPlayer(newMasterUid))
         {
           // New master exists in room
-          auto& details = room.GetRoomDetails();
           details.masterUid = newMasterUid;
           return;
         }
@@ -313,8 +315,9 @@ void RaceInstance::TickFinishing()
           if (not room.HasPlayer(score.uid))
             continue;
           
-          // Character is in room
-          newMasterUid = score.uid;
+          // Character is in room, set room master to new uid
+          newMasterUid = details.masterUid = score.uid;
+          newMasterName = score.name;
           return;
         }
 
@@ -327,7 +330,7 @@ void RaceInstance::TickFinishing()
       const auto& winnerClientContext = _raceDirector.GetClientContextByCharacterUid(newMasterUid);
       spdlog::info("Player {} ({}) has won the match and is now master of [Room {}]",
         winnerClientContext.userName,
-        raceResult.scores[0].name,
+        newMasterName,
         this->GetRoomUid());
       
       const protocol::AcCmdCRChangeMasterNotify masterNotify{
