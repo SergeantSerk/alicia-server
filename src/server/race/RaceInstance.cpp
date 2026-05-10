@@ -148,7 +148,7 @@ void RaceInstance::TickRacing()
       if (not isParticipant)
         continue;
 
-      _raceDirector._commandServer.QueueCommand<decltype(notify)>(
+      _raceDirector.GetCommandServer().QueueCommand<decltype(notify)>(
         player.GetClientId(),
         [notify]()
         {
@@ -359,7 +359,7 @@ void RaceInstance::TickFinishing()
             updateGameMoney.carrotBalance = character.carrots();
           });
 
-        _raceDirector._commandServer.QueueCommand<protocol::AcCmdRCUpdateGameMoney>(
+        _raceDirector.GetCommandServer().QueueCommand<protocol::AcCmdRCUpdateGameMoney>(
           player.GetClientId(),
           [updateGameMoney]()
           {

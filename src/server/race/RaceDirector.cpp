@@ -502,6 +502,11 @@ ServerInstance& RaceDirector::GetServerInstance()
   return _serverInstance;
 }
 
+CommandServer& RaceDirector::GetCommandServer()
+{
+  return _commandServer;
+}
+
 Config::Race& RaceDirector::GetConfig()
 {
   return GetServerInstance().GetSettings().race;

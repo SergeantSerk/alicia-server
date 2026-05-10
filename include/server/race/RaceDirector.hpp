@@ -81,7 +81,6 @@ public:
   //! @return Room count.
   [[nodiscard]] size_t GetRoomCount();
 
-  ServerInstance& GetServerInstance();
   Config::Race& GetConfig();
 
 private:
@@ -287,6 +286,9 @@ private:
     const protocol::AcCmdCRGameCreateClientItem& command);
 
   void PrepareItemSpawners(RaceInstance& raceInstance);
+
+  ServerInstance& GetServerInstance();
+  CommandServer& GetCommandServer();
 
   template <WritableStruct C>
   void Broadcast(
