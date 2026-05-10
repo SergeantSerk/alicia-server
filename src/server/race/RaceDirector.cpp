@@ -1424,11 +1424,15 @@ void RaceDirector::HandleStartRace(
 
   // Queue race start after room countdown.
   _scheduler.Queue(
-    [this, clientId, clientContext]()
+    [this, roomUid]()
     {
       std::scoped_lock raceInstanceLock(_raceInstancesMutex);
-      // Get race instance (and check if added as racer)
-      auto& raceInstance = GetRaceInstance(clientContext);
+
+      const auto raceInstanceIter = _raceInstances.find(roomUid);;
+      if (raceInstanceIter == _raceInstances.cend())
+        return;
+
+      auto& raceInstance = raceInstanceIter->second;
       const auto& parameters = raceInstance.GetParameters();
 
       const auto& lobbyConfig = GetServerInstance().GetLobbyDirector().GetConfig();
