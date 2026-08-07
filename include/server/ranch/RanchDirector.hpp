@@ -587,6 +587,10 @@ private:
     ClientId clientId,
     const protocol::AcCmdCRBreedingWishlistDel& command);
 
+  void HandleModifyGuildEmblem(
+    ClientId clientId,
+    const protocol::AcCmdCRModifyGuildEmblem& command);
+
   //!
   ServerInstance& _serverInstance;
   //!

@@ -1146,6 +1146,7 @@ void server::FileDataSource::RetrieveGuild(data::Uid uid, data::Guild& guild)
   guild.totalLosses = json.value("totalLosses", uint32_t{});
   guild.seasonalWins = json.value("seasonalWins", uint32_t{});
   guild.seasonalLosses = json.value("seasonalLosses", uint32_t{});
+  guild.emblemUid = json.value("emblemUid", data::Uid{});
 }
 
 void server::FileDataSource::StoreGuild(data::Uid uid, const data::Guild& guild)
@@ -1173,6 +1174,7 @@ void server::FileDataSource::StoreGuild(data::Uid uid, const data::Guild& guild)
   json["totalLosses"] = guild.totalLosses();
   json["seasonalWins"] = guild.seasonalWins();
   json["seasonalLosses"] = guild.seasonalLosses();
+  json["emblemUid"] = guild.emblemUid();
 
   dataFile << json.dump(2);
 }
