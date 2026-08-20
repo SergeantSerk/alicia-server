@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <vector>
 
 #include <spdlog/spdlog.h>
@@ -278,6 +279,23 @@ data::Tid Genetics::ReadPart(const data::Uid horseUid, const Part part)
     }
   });
   return tid;
+}
+
+uint32_t Genetics::ReadPotentialType(const data::Uid horseUid)
+{
+  if (horseUid == data::InvalidUid)
+    return 0;
+
+  const auto record = _serverInstance.GetDataDirector().GetHorse(horseUid);
+  if (not record)
+    return 0;
+
+  uint32_t type = 0;
+  record.Immutable([&](const data::Horse& horse)
+  {
+    type = horse.potential.type();
+  });
+  return type;
 }
 
 Genetics::Ancestry Genetics::BuildAncestry(const data::Uid mareUid, const data::Uid stallionUid)
@@ -592,26 +610,24 @@ Genetics::PotentialResult Genetics::CalculateFoalPotential(
   PotentialResult result; // level/value default to 0 for newborns.
 
   const auto& registry = _serverInstance.GetHorseRegistry();
+  const Ancestry ancestry = BuildAncestry(mareUid, stallionUid);
 
-  // Count parents that carry a potential.
+  // Count parents and grandparents that carry a potential.
   int parentsWithPotential = 0;
-  const auto countPotential = [&](data::Uid uid)
-  {
-    if (uid == data::InvalidUid)
-      return;
-    const auto record = _serverInstance.GetDataDirector().GetHorse(uid);
-    if (not record)
-      return;
-    record.Immutable([&](const data::Horse& horse)
-    {
-      if (horse.potential.type() > 0)
-        ++parentsWithPotential;
-    });
-  };
-  countPotential(mareUid);
-  countPotential(stallionUid);
+  if (ReadPotentialType(ancestry.mare) > 0)
+    ++parentsWithPotential;
+  if (ReadPotentialType(ancestry.stallion) > 0)
+    ++parentsWithPotential;
 
-  // Probability: base 5%, plus a coat-tier bonus, plus 10% per parent with a potential.
+  int grandparentsWithPotential = 0;
+  for (const data::Uid gpUid : ancestry.grandparents)
+  {
+    if (ReadPotentialType(gpUid) > 0)
+      ++grandparentsWithPotential;
+  }
+
+  // Probability: base 5%, plus a coat-tier bonus, plus 10% per parent with a potential,
+  // plus 5% per grandparent with a potential.
   int probability = 5;
   switch (registry.GetCoatInfo(foalSkinTid).tier)
   {
@@ -620,6 +636,7 @@ Genetics::PotentialResult Genetics::CalculateFoalPotential(
     case registry::Coat::Tier::Common:   break;
   }
   probability += parentsWithPotential * 10;
+  probability += grandparentsWithPotential * 5;
 
   if (RollPercent() >= probability)
   {
@@ -627,16 +644,107 @@ Genetics::PotentialResult Genetics::CalculateFoalPotential(
     return result;
   }
 
-  // Pick a random potential type from the registry
+  // Pick a random potential type from the registry as fallback/mutation pool
   const auto& potentialTypes = registry.GetPotentialTypes();
   if (potentialTypes.empty())
   {
     spdlog::warn("Genetics: no potential types configured");
     return result;
   }
-  std::uniform_int_distribution<size_t> typeDist(0, potentialTypes.size() - 1);
-  result.type = static_cast<uint8_t>(potentialTypes[typeDist(server::util::GetRandomEngine())]);
+
+  // Biological inheritance via crossover and mutation:
+  // Direct parents carry higher genetic weight (70%),
+  // grandparents carry 15% each within their branch.
+  constexpr float kParentWeight = 70.0f;
+  constexpr float kGrandparentWeight = 15.0f;
+
+  // Samples an inherited allele from a parental branch (parent + 2 grandparents).
+  const auto sampleBranchAllele = [&](
+    data::Uid parentUid,
+    data::Uid gmUid,
+    data::Uid gfUid) -> std::optional<uint32_t>
+  {
+    std::vector<uint32_t> candidates;
+    std::vector<float> weights;
+
+    if (const uint32_t parentPot = ReadPotentialType(parentUid); parentPot > 0)
+    {
+      candidates.push_back(parentPot);
+      weights.push_back(kParentWeight);
+    }
+
+    if (const uint32_t gmPot = ReadPotentialType(gmUid); gmPot > 0)
+    {
+      candidates.push_back(gmPot);
+      weights.push_back(kGrandparentWeight);
+    }
+
+    if (const uint32_t gfPot = ReadPotentialType(gfUid); gfPot > 0)
+    {
+      candidates.push_back(gfPot);
+      weights.push_back(kGrandparentWeight);
+    }
+
+    if (candidates.empty())
+      return std::nullopt;
+
+    return PickWeighted(
+      server::util::GetRandomEngine(),
+      candidates,
+      weights,
+      candidates.front());
+  };
+
+  const std::optional<uint32_t> maternalAllele = sampleBranchAllele(
+    ancestry.mare,
+    ancestry.grandparents[0],
+    ancestry.grandparents[1]);
+  const std::optional<uint32_t> paternalAllele = sampleBranchAllele(
+    ancestry.stallion,
+    ancestry.grandparents[2],
+    ancestry.grandparents[3]);
+
+  // Combine maternal and paternal gametes via crossover / Mendelian segregation
+  uint32_t inheritedType = 0;
+  if (maternalAllele and paternalAllele)
+  {
+    if (*maternalAllele == *paternalAllele)
+    {
+      // Homozygous / pure lineage: both branches carry identical potential
+      inheritedType = *maternalAllele;
+    }
+    else
+    {
+      // Heterozygous: 50% segregation between maternal and paternal allele
+      inheritedType = RollPercent() < 50 ? *maternalAllele : *paternalAllele;
+    }
+  }
+  else if (maternalAllele)
+  {
+    inheritedType = *maternalAllele;
+  }
+  else if (paternalAllele)
+  {
+    inheritedType = *paternalAllele;
+  }
+  else
+  {
+    // Neither lineage carries a potential: choose uniformly from configured potential types
+    std::uniform_int_distribution<size_t> typeDist(0, potentialTypes.size() - 1);
+    inheritedType = potentialTypes[typeDist(server::util::GetRandomEngine())];
+  }
+
+  // Spontaneous mutation
+  static constexpr int kMutationRate = 5; // 5% spontaneous point mutation rate
+  if (RollPercent() < kMutationRate or inheritedType == 0)
+  {
+    std::uniform_int_distribution<size_t> typeDist(0, potentialTypes.size() - 1);
+    inheritedType = potentialTypes[typeDist(server::util::GetRandomEngine())];
+  }
+
+  result.type = static_cast<uint8_t>(inheritedType);
   result.level = 1;
+  result.value = 0;
 
   return result;
 }

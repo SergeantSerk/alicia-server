@@ -111,8 +111,11 @@ public:
     uint8_t value{0};  // Always 0 for newborns
   };
 
-  //! Calculates whether foal has a potential and what type.
-  //! Base 5% chance + coat star bonus + parent potential bonus
+  //! Calculates whether foal has a potential and determines its type via biological
+  //! crossover and mutation from parents and grandparents.
+  //! Base 5% chance + coat tier bonus + parent (10% each) + grandparent (5% each) bonus.
+  //! If gained, potential type is inherited through maternal/paternal branch crossover
+  //! and Mendelian segregation, with a 5% spontaneous point mutation rate.
   //! @param mareUid Mare's UID
   //! @param stallionUid Stallion's UID
   //! @param foalSkinTid Foal's skin TID (determines star bonus)
@@ -190,6 +193,10 @@ private:
   //! Reads a single part TID from a horse by UID.
   //! @returns The part TID, or 0 if the horse is not found.
   data::Tid ReadPart(data::Uid horseUid, Part part);
+
+  //! Reads a horse's potential type by UID.
+  //! @returns The potential type, or 0 if the horse is not found or has no potential.
+  uint32_t ReadPotentialType(data::Uid horseUid);
 
   //! Rolls a percentage value in [0, 99].
   int RollPercent();
