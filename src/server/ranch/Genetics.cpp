@@ -626,17 +626,23 @@ Genetics::PotentialResult Genetics::CalculateFoalPotential(
       ++grandparentsWithPotential;
   }
 
-  // Probability: base 5%, plus a coat-tier bonus, plus 10% per parent with a potential,
-  // plus 5% per grandparent with a potential.
-  int probability = 5;
+  // Probability: base chance, plus a coat-tier bonus,
+  // plus per parent/grandparent with a potential.
+  const auto& breedingParams = _serverInstance.GetBreedingRegistry().GetBreedingParams();
+  int probability = breedingParams.potentialBaseChance;
   switch (registry.GetCoatInfo(foalSkinTid).tier)
   {
-    case registry::Coat::Tier::Rare:     probability += 10; break;
-    case registry::Coat::Tier::Uncommon: probability += 5;  break;
-    case registry::Coat::Tier::Common:   break;
+    case registry::Coat::Tier::Rare:
+      probability += breedingParams.potentialRareCoatBonus;
+      break;
+    case registry::Coat::Tier::Uncommon:
+      probability += breedingParams.potentialUncommonCoatBonus;
+      break;
+    case registry::Coat::Tier::Common:
+      break;
   }
-  probability += parentsWithPotential * 10;
-  probability += grandparentsWithPotential * 5;
+  probability += parentsWithPotential * breedingParams.potentialParentBonus;
+  probability += grandparentsWithPotential * breedingParams.potentialGrandparentBonus;
 
   if (RollPercent() >= probability)
   {
@@ -653,10 +659,10 @@ Genetics::PotentialResult Genetics::CalculateFoalPotential(
   }
 
   // Biological inheritance via crossover and mutation:
-  // Direct parents carry higher genetic weight (70%),
-  // grandparents carry 15% each within their branch.
-  constexpr float kParentWeight = 70.0f;
-  constexpr float kGrandparentWeight = 15.0f;
+  // Direct parents carry higher genetic weight,
+  // grandparents carry lower weight within their branch.
+  const float parentWeight = breedingParams.potentialParentWeight;
+  const float grandparentWeight = breedingParams.potentialGrandparentWeight;
 
   // Samples an inherited allele from a parental branch (parent + 2 grandparents).
   const auto sampleBranchAllele = [&](
@@ -670,19 +676,19 @@ Genetics::PotentialResult Genetics::CalculateFoalPotential(
     if (const uint32_t parentPot = ReadPotentialType(parentUid); parentPot > 0)
     {
       candidates.push_back(parentPot);
-      weights.push_back(kParentWeight);
+      weights.push_back(parentWeight);
     }
 
     if (const uint32_t gmPot = ReadPotentialType(gmUid); gmPot > 0)
     {
       candidates.push_back(gmPot);
-      weights.push_back(kGrandparentWeight);
+      weights.push_back(grandparentWeight);
     }
 
     if (const uint32_t gfPot = ReadPotentialType(gfUid); gfPot > 0)
     {
       candidates.push_back(gfPot);
-      weights.push_back(kGrandparentWeight);
+      weights.push_back(grandparentWeight);
     }
 
     if (candidates.empty())
@@ -735,8 +741,7 @@ Genetics::PotentialResult Genetics::CalculateFoalPotential(
   }
 
   // Spontaneous mutation
-  static constexpr int kMutationRate = 5; // 5% spontaneous point mutation rate
-  if (RollPercent() < kMutationRate or inheritedType == 0)
+  if (RollPercent() < breedingParams.potentialMutationRate or inheritedType == 0)
   {
     std::uniform_int_distribution<size_t> typeDist(0, potentialTypes.size() - 1);
     inheritedType = potentialTypes[typeDist(server::util::GetRandomEngine())];

@@ -125,6 +125,19 @@ breeding:
     chanceCardChance: 15
     # +/- variation (%) applied when inheriting a foal's appearance from the average of its parents.
     appearanceVariation: 20
+    # Base probability (%) for a newborn foal to acquire a potential.
+    potentialBaseChance: 5
+    # Probability (%) added for Rare and Uncommon foal coat tiers.
+    potentialUncommonCoatBonus: 5
+    potentialRareCoatBonus: 10
+    # Probability (%) added per parent and grandparent with a potential.
+    potentialParentBonus: 10
+    potentialGrandparentBonus: 5
+    # Genetic crossover weights within an ancestral branch (direct parent vs grandparents).
+    potentialParentWeight: 70.0
+    potentialGrandparentWeight: 15.0
+    # Spontaneous point mutation rate (%) for potential type.
+    potentialMutationRate: 5
 
   # Breeding cost per parent horse grade
   costInfo:

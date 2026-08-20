@@ -82,6 +82,22 @@ void BreedingRegistry::ReadConfig(const std::filesystem::path& configPath)
       _params.appearanceVariation);
     _params.inheritanceRateBonusUnit = params["inheritanceRateBonusUnit"].as<int32_t>(
       _params.inheritanceRateBonusUnit);
+    _params.potentialBaseChance = params["potentialBaseChance"].as<int32_t>(
+      _params.potentialBaseChance);
+    _params.potentialRareCoatBonus = params["potentialRareCoatBonus"].as<int32_t>(
+      _params.potentialRareCoatBonus);
+    _params.potentialUncommonCoatBonus = params["potentialUncommonCoatBonus"].as<int32_t>(
+      _params.potentialUncommonCoatBonus);
+    _params.potentialParentBonus = params["potentialParentBonus"].as<int32_t>(
+      _params.potentialParentBonus);
+    _params.potentialGrandparentBonus = params["potentialGrandparentBonus"].as<int32_t>(
+      _params.potentialGrandparentBonus);
+    _params.potentialParentWeight = params["potentialParentWeight"].as<float>(
+      _params.potentialParentWeight);
+    _params.potentialGrandparentWeight = params["potentialGrandparentWeight"].as<float>(
+      _params.potentialGrandparentWeight);
+    _params.potentialMutationRate = params["potentialMutationRate"].as<int32_t>(
+      _params.potentialMutationRate);
   }
 
   if (const auto genetics = breeding["genetics"])

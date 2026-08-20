@@ -85,6 +85,22 @@ struct BreedingParams
   int32_t appearanceVariation{20};
   //! Coat inheritance-rate bonus (%) granted per breeding-combo success.
   int32_t inheritanceRateBonusUnit{2};
+  //! Base probability (%) for a newborn foal to acquire a potential.
+  int32_t potentialBaseChance{5};
+  //! Bonus probability (%) added for Uncommon coat tier.
+  int32_t potentialUncommonCoatBonus{5};
+  //! Bonus probability (%) added for Rare coat tier.
+  int32_t potentialRareCoatBonus{10};
+  //! Bonus probability (%) added per parent with a potential.
+  int32_t potentialParentBonus{10};
+  //! Bonus probability (%) added per grandparent with a potential.
+  int32_t potentialGrandparentBonus{5};
+  //! Genetic crossover weight for a direct parent within its ancestral branch.
+  float potentialParentWeight{70.0f};
+  //! Genetic crossover weight for each grandparent within its ancestral branch.
+  float potentialGrandparentWeight{15.0f};
+  //! Spontaneous point mutation rate (%) for potential type.
+  int32_t potentialMutationRate{5};
 };
 
 //! A grade band for the breeding bonus roll (e.g. small/big grades).
