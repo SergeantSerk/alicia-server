@@ -52,9 +52,20 @@ T PickWeighted(
   const std::vector<W>& weights,
   const T fallback)
 {
-  if (values.empty())
+  if (values.empty() or weights.empty() or values.size() != weights.size())
     return fallback;
-  std::discrete_distribution<size_t> dist(weights.begin(), weights.end());
+
+  W sum = 0;
+  for (const auto w : weights)
+  {
+    if (w > 0)
+      sum += w;
+  }
+
+  if (sum <= 0)
+    return fallback;
+
+  std::discrete_distribution<size_t> dist(weights.cbegin(), weights.cend());
   return values[dist(engine)];
 }
 
@@ -673,19 +684,22 @@ Genetics::PotentialResult Genetics::CalculateFoalPotential(
     std::vector<uint32_t> candidates;
     std::vector<float> weights;
 
-    if (const uint32_t parentPot = ReadPotentialType(parentUid); parentPot > 0)
+    const uint32_t parentPot = ReadPotentialType(parentUid);
+    if (parentPot > 0 and parentWeight > 0.0f)
     {
       candidates.push_back(parentPot);
       weights.push_back(parentWeight);
     }
 
-    if (const uint32_t gmPot = ReadPotentialType(gmUid); gmPot > 0)
+    const uint32_t gmPot = ReadPotentialType(gmUid);
+    if (gmPot > 0 and grandparentWeight > 0.0f)
     {
       candidates.push_back(gmPot);
       weights.push_back(grandparentWeight);
     }
 
-    if (const uint32_t gfPot = ReadPotentialType(gfUid); gfPot > 0)
+    const uint32_t gfPot = ReadPotentialType(gfUid);
+    if (gfPot > 0 and grandparentWeight > 0.0f)
     {
       candidates.push_back(gfPot);
       weights.push_back(grandparentWeight);
